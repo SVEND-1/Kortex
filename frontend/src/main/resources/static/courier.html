@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="css/mainFormStyle.css">
+    <link rel="stylesheet" href="css/courierStyle.css">
+    <title>Панель курьера</title>
+    <style>
+        /* Стили для пагинации */
+        .pagination-container {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .page-info {
+            color: #666;
+            font-size: 0.95rem;
+            font-weight: 500;
+            margin: 0 20px;
+            padding: 8px 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border: 1px solid #dee2e6;
+        }
+
+        .pagination-btn {
+            padding: 10px 20px;
+            font-size: 0.9rem;
+            min-width: 100px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+
+        .pagination-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination-btn:disabled:hover {
+            background: transparent;
+            color: #667eea;
+            transform: none;
+        }
+
+        .pagination-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        /* Адаптивность пагинации */
+        @media (max-width: 768px) {
+            .pagination {
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .page-info {
+                order: -1;
+                margin-bottom: 5px;
+                margin-top: 10px;
+            }
+
+            .pagination-btn {
+                width: 100%;
+                max-width: 200px;
+            }
+        }
+
+        /* Стили для кнопки "вернуть" */
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+            border: none;
+        }
+
+        .btn-warning:hover {
+            background: #e0a800;
+            color: #212529;
+        }
+    </style>
+</head>
+<body>
+<!-- Шапка страницы -->
+<header class="header">
+    <div class="container">
+        <div class="header-content">
+            <a href="/" class="logo">Kortex marketplace</a>
+
+            <form class="search-form" action="/search" method="GET">
+                <div class="search-container">
+                    <input id="search-input" type="text" class="search-input" placeholder="Поиск товаров...">
+                    <button type="submit" class="search-button">
+                        <img id="findImg" src="images/findImg.png" alt="Поиск">
+                    </button>
+                </div>
+            </form>
+
+            <nav class="nav">
+                <a href="/cart" class="nav-link">
+                    <img src="images/cart-img.png" alt="Корзина" class="nav-icon">
+                    Корзина
+                </a>
+
+                <a href="/profile" class="nav-link">
+                    <img src="images/profile-img.png" alt="Профиль" class="nav-icon profile-icon">
+                    <span class="profile-text">Профиль</span>
+                </a>
+
+                <a href="/logout" class="nav-link">
+                    <img src="images/join-img.png" alt="Выйти" class="nav-icon">
+                    Выйти
+                </a>
+            </nav>
+        </div>
+    </div>
+</header>
+
+<!-- Основной контент курьера -->
+<div class="courier-container">
+    <div class="courier-header">
+        <h1>Панель курьера</h1>
+        <button class="btn btn-outline" onclick="refreshOrders()">Обновить заказы</button>
+    </div>
+
+    <!-- Блок информации о курьере -->
+    <div class="courier-info">
+        <div class="courier-card">
+            <div class="courier-details">
+                <h2 id="courierName">Загрузка...</h2>
+                <p class="courier-role" id="courierRole">Курьер</p>
+                <div class="courier-stats">
+                    <div class="stat-item">
+                        <span class="stat-value" id="activeOrders">0</span>
+                        <span class="stat-label">Активных</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="availableOrders">0</span>
+                        <span class="stat-label">Доступных</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="totalOrders">0</span>
+                        <span class="stat-label">Всего</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Фильтры заказов -->
+    <div class="orders-filters">
+        <div class="filter-buttons">
+            <button type="button" class="filter-btn active" onclick="setFilter('assigned')">
+                Мои заказы
+            </button>
+            <button type="button" class="filter-btn" onclick="setFilter('available')">
+                Доступные заказы
+            </button>
+        </div>
+    </div>
+
+    <!-- Список заказов -->
+    <div class="orders-list">
+        <h3 id="ordersTitle">Мои заказы</h3>
+
+        <div class="orders-container" id="ordersContainer">
+            <div class="loading">Загрузка заказов...</div>
+        </div>
+
+        <!-- Контейнер для пагинации -->
+        <div id="paginationContainer" class="pagination-container" style="display: none;"></div>
+    </div>
+</div>
+
+<!-- Шаблон заказа -->
+<template id="orderTemplate">
+    <div class="order-card" data-order-id="">
+        <div class="order-header">
+            <div>
+                <h4 class="order-number">Заказ #<span class="order-id"></span></h4>
+                <div class="order-date" style="font-size: 0.8rem; color: #666; margin-top: 2px;"></div>
+            </div>
+            <span class="order-status">Статус</span>
+        </div>
+
+        <div class="order-customer">
+            <div class="customer-info">
+                <strong>Клиент:</strong>
+                <span class="customer-name">Загрузка...</span>
+            </div>
+            <div class="customer-info">
+                <strong>Телефон:</strong>
+                <span class="customer-phone">Загрузка...</span>
+            </div>
+            <div class="customer-info">
+                <strong>Адрес:</strong>
+                <span class="customer-address">Загрузка...</span>
+            </div>
+            <div class="customer-info courier-info">
+                <strong>Курьер:</strong>
+                <span class="courier-name">Не назначен</span>
+            </div>
+            <div class="order-price">
+                <strong>Сумма:</strong>
+                <span class="price-value">0 ₽</span>
+            </div>
+        </div>
+
+        <div class="order-actions">
+            <button type="button" class="btn btn-primary btn-small accept-btn">
+                Принять заказ
+            </button>
+
+            <button type="button" class="btn btn-secondary btn-small start-btn">
+                Начать доставку
+            </button>
+
+            <button type="button" class="btn btn-success btn-small complete-btn">
+                Завершить доставку
+            </button>
+
+            <button type="button" class="btn btn-warning btn-small return-btn" style="display: none;">
+                Вернуть
+            </button>
+
+            <button type="button" class="btn btn-danger btn-small cancel-btn" style="display: none;">
+                Отменить
+            </button>
+
+            <button type="button" class="btn btn-outline btn-small details-btn">
+                Подробнее
+            </button>
+        </div>
+    </div>
+</template>
+
+<script src="js/courierScript.js"></script>
+</body>
+</html>

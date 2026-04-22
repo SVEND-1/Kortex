@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link rel="stylesheet" href="css/mainFormStyle.css">
+    <link rel="stylesheet" href="css/productStyle.css">
+
+    <!-- jQuery уже подключен -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <title>О товаре - Онлайн магазин</title>
+</head>
+
+<body>
+
+<header class="header">
+    <div class="container">
+        <div class="header-content">
+            <a href="/" class="logo">Kortex marketplace</a>
+
+            <form class="search-form">
+                <div class="search-container">
+                    <input id="search-input" type="text" class="search-input" placeholder="Поиск товаров...">
+                    <button type="submit" class="search-button">
+                        <img src="images/findImg.png" alt="Поиск">
+                    </button>
+                </div>
+            </form>
+
+            <nav class="nav">
+                <a href="/cart" class="nav-link">
+                    <img src="images/cart-img.png" class="nav-icon" alt="Корзина">
+                    Корзина
+                </a>
+
+                <a href="/profile" class="nav-link">
+                    <img src="images/profile-img.png" class="nav-icon" alt="Профиль">
+                    Профиль
+                </a>
+
+                <a href="/login" class="nav-link">
+                    <img src="images/join-img.png" class="nav-icon" alt="Войти">
+                    Войти
+                </a>
+            </nav>
+        </div>
+    </div>
+</header>
+
+<main class="product-container">
+    <div class="container">
+
+        <a href="/" class="back-button">← Назад к каталогу</a>
+
+        <div id="product-content" class="product-content">
+
+            <div class="product-images">
+                <div class="main-image">
+                    <img id="mainImage" src="images/product-img.png" alt="Товар">
+                </div>
+            </div>
+
+            <div class="product-info">
+
+                <div class="product-header">
+                    <h1 id="productTitle" class="product-title">Загрузка...</h1>
+                    <div id="productCategory" class="product-category"></div>
+                </div>
+
+                <div class="product-price">
+                    <span id="productPrice" class="current-price">0 ₽</span>
+                </div>
+
+                <div id="productStock" class="product-stock">
+                    В наличии: —
+                </div>
+
+                <div class="product-description">
+                    <h3>Описание</h3>
+                    <p id="productDescription">Загрузка...</p>
+                </div>
+
+                <div class="product-meta">
+                    <div class="meta-item">
+                        <strong>Категория:</strong>
+                        <span id="productCategoryFull">-</span>
+                    </div>
+                </div>
+
+                <div class="product-actions">
+
+                    <!-- Количество УДАЛЕНО -->
+
+                    <button id="addToCartBtn" class="btn btn-primary btn-large">
+                        🛒 Добавить в корзину
+                    </button>
+
+                    <div id="successMessage" class="success-message" style="display:none;">
+                        Товар добавлен в корзину!
+                    </div>
+
+                    <div id="errorMessage" class="error-message" style="display:none;">
+                        Ошибка
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <div id="errorBlock" style="display:none; padding:40px; text-align:center;">
+            <h2>Ошибка</h2>
+            <p id="errorText">Не удалось загрузить товар</p>
+            <button onclick="history.back()" class="btn">Назад</button>
+        </div>
+
+    </div>
+</main>
+
+
+<!-- ======= JS с jQuery ======= -->
+<script>
+    $(document).ready(function() {
+        const params = new URLSearchParams(window.location.search);
+        const id = params.get("id");
+
+        if (!id) {
+            showError("ID товара не указан");
+            return;
+        }
+
+        loadProduct(id);
+    });
+
+
+    /* =====================
+       ЗАГРУЗКА С BACKEND
+    ===================== */
+    async function loadProduct(id) {
+        try {
+            const res = await fetch(`/api/products/${id}`);
+
+            if (!res.ok) throw new Error("Товар не найден");
+
+            const product = await res.json();
+            fillProduct(product);
+
+        } catch (e) {
+            console.error(e);
+            showError("Не удалось загрузить товар");
+        }
+    }
+
+
+    /* =====================
+       ОТОБРАЖЕНИЕ ТОВАРА (с jQuery)
+    ===================== */
+    function fillProduct(p) {
+        // Используем jQuery для установки текста
+        $("#productTitle").text(p.name);
+        $("#productCategory").text(p.category);
+        $("#productCategoryFull").text(p.category);
+
+        $("#productPrice").text(formatPrice(p.price));
+
+        $("#productStock").text(`✓ В наличии: ${p.count} шт.`);
+
+        $("#productDescription").text(p.description || "Описание отсутствует");
+
+        $("#mainImage").attr("src", "/uploads/images/" + p.image);
+
+        // Инициализируем добавление в корзину
+        initAddToCart(p.id);
+    }
+
+
+    /* =====================
+       ДОБАВЛЕНИЕ В КОРЗИНУ (с jQuery)
+    ===================== */
+    function initAddToCart(productId) {
+        const $btn = $("#addToCartBtn");
+
+        $btn.on("click", async function() {
+            try {
+                $btn.prop("disabled", true);
+
+                const response = await fetch(`/api/carts/items?productId=${productId}`, {
+                    method: "POST",
+                    headers: {
+                        "Accept": "application/json"
+                    }
+                });
+
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err.error || "Ошибка при добавлении в корзину");
+                }
+
+                // Показываем успешное сообщение
+                const $successMsg = $("#successMessage");
+                $successMsg.show();
+                setTimeout(() => $successMsg.hide(), 2000);
+
+            } catch (e) {
+                console.error(e);
+
+                // Показываем ошибку
+                const $errorMsg = $("#errorMessage");
+                $errorMsg.text("❌ " + e.message).show();
+                setTimeout(() => $errorMsg.hide(), 3000);
+
+            } finally {
+                $btn.prop("disabled", false);
+            }
+        });
+    }
+
+
+    /* =====================
+       ФОРМАТ ЦЕНЫ
+    ===================== */
+    function formatPrice(price) {
+        return new Intl.NumberFormat("ru-RU", {
+            style: "currency",
+            currency: "RUB",
+            minimumFractionDigits: 0
+        }).format(price);
+    }
+
+
+    /* =====================
+       ОШИБКА (с jQuery)
+    ===================== */
+    function showError(msg) {
+        $("#product-content").hide();
+        $("#errorText").text(msg);
+        $("#errorBlock").show();
+    }
+</script>
+
+</body>
+</html>
