@@ -25,6 +25,11 @@ public class AuthController {
         this.authService = authService;
     }
 
+    @GetMapping("/test")
+    public String test() {
+        return "Hello World";
+    }
+
     @Operation(summary = "Вход в систему существуещего пользователя")
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody @Valid LoginRequest loginRequest,

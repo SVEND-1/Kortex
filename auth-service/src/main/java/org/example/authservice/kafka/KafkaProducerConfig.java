@@ -1,15 +1,17 @@
 package org.example.authservice.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.example.kafkaEvent.NotifyEvent;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.kafka.core.DefaultKafkaProducerFactory;
-import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
+import org.springframework.kafka.core.*;
+import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 
 import java.util.HashMap;
@@ -21,30 +23,32 @@ public class KafkaProducerConfig {
     @Value("${spring.kafka.bootstrap-servers}")
     private String port;
 
-    public Map<String, Object> producerFactory() {
-        Map<String, Object> configProperties = new HashMap<>();
-        configProperties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, port);
-        return configProperties;
-    }
-
     @Bean
-    public ProducerFactory<String, NotifyEvent> userNotifyProducerFactory(
+    public ConsumerFactory<String, NotifyEvent> consumerFactory(
             ObjectMapper objectMapper
     ) {
-        JsonSerializer<NotifyEvent> serializer = new JsonSerializer<>(objectMapper);
-        serializer.setAddTypeInfo(false);
+        Map<String, Object> props = new HashMap<>();
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, port);
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, "notify-group");
 
-        return new DefaultKafkaProducerFactory<>(
-                producerFactory(),
-                new StringSerializer(),
-                serializer
+        JsonDeserializer<NotifyEvent> jsonDeserializer =
+                new JsonDeserializer<>(NotifyEvent.class, objectMapper);
+
+        return new DefaultKafkaConsumerFactory<>(
+                props,
+                new StringDeserializer(),
+                jsonDeserializer
         );
     }
 
     @Bean
-    public KafkaTemplate<String, NotifyEvent> userNotifyKafkaTemplate(
-            ProducerFactory<String, NotifyEvent> factory
+    public ConcurrentKafkaListenerContainerFactory<String, NotifyEvent> kafkaListenerContainerFactory(
+            ConsumerFactory<String, NotifyEvent> consumerFactory
     ) {
-        return new KafkaTemplate<>(factory);
+        ConcurrentKafkaListenerContainerFactory<String, NotifyEvent> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(consumerFactory);
+        factory.setConcurrency(1);
+        return factory;
     }
 }

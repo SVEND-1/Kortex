@@ -13,9 +13,9 @@ public class GatewayRoutesConfig {
         return builder.routes()
                 // Auth Service
                 .route("auth-service", r -> r
-                        .path("/api/auth/**")
+                        .path("/api/auth/**","/swagger-ui.html/**")
                         .filters(f -> f.stripPrefix(0))
-                        .uri("http://localhost:8081"))
+                        .uri("http://localhost:8081"))//todo можнл сделать id приложение возможно будет lb://auth-service
 
                 // Product Service
                 .route("product-service", r -> r
@@ -74,7 +74,11 @@ public class GatewayRoutesConfig {
 
                 // Frontend (если есть)
                 .route("frontend", r -> r
-                        .path("/", "/index.html", "/css/**", "/js/**", "/images/**")
+                        .path("/","/login","/register", "/index.html",
+                                "/codeEmail","/forgotPassword","/resetPassword",
+                                "/recoveryPassword","/seller","/admin","/profile",
+                                "/cart","/productForm","/courier","/checkout","/error",
+                                "/css/**", "/js/**", "/images/**")
                         .uri("http://localhost:3000"))
 
                 // Default (fallback)

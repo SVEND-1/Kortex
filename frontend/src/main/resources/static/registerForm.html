@@ -8,7 +8,6 @@
     <title>Регистрация</title>
 </head>
 <body>
-<!--Шапка страницы-->
 <header class="header">
     <div class="container">
         <div class="header-content">
@@ -28,12 +27,10 @@
                     <img src="/images/cart-img.png" alt="Корзина" class="nav-icon">
                     Корзина
                 </a>
-
                 <a href="/profile" class="nav-link">
                     <img src="/images/profile-img.png" alt="Профиль" class="nav-icon profile-icon">
                     <span class="profile-text">Профиль</span>
                 </a>
-
                 <a href="/login" class="nav-link">
                     <img src="/images/join-img.png" alt="Войти" class="nav-icon">
                     Войти
@@ -43,15 +40,16 @@
     </div>
 </header>
 
-
-<!-- Форма регистрации -->
 <main class="auth-container">
     <div class="auth-form">
         <h2 class="registerH2">Регистрация</h2>
 
+        <div id="errorMessage" class="error-message" style="display: none; color: red; margin-bottom: 15px; padding: 10px; background: #ffebee; border-radius: 5px;"></div>
+        <div id="successMessage" class="success-message" style="display: none; color: green; margin-bottom: 15px; padding: 10px; background: #e8f5e9; border-radius: 5px;"></div>
+
         <form class="loginForm" id="registerForm">
             <label>Имя</label>
-            <input type="text" name="name" placeholder="Иван" required>
+            <input type="text" name="name" id="name" placeholder="Иван" required>
 
             <label>Email</label>
             <input type="email" name="email" id="email" placeholder="example@mail.ru" required>
@@ -77,7 +75,104 @@
     </div>
 </main>
 
-<script src="js/authScript.js"></script>
-<script src="js/api-integration.js"></script>
+<script>
+    // Прямой скрипт на странице (без внешних файлов для теста)
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Страница регистрации загружена');
+
+        const form = document.getElementById('registerForm');
+        const errorDiv = document.getElementById('errorMessage');
+        const successDiv = document.getElementById('successMessage');
+
+        if (form) {
+            console.log('Форма найдена, добавляем обработчик');
+
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                console.log('Форма отправлена');
+
+                // Скрываем старые сообщения
+                errorDiv.style.display = 'none';
+                successDiv.style.display = 'none';
+
+                // Получаем данные
+                const name = document.getElementById('name').value.trim();
+                const email = document.getElementById('email').value.trim();
+                const password = document.getElementById('password').value;
+                const confirmPassword = document.getElementById('confirmPassword').value;
+
+                // Валидация
+                if (!name || !email || !password || !confirmPassword) {
+                    errorDiv.textContent = 'Заполните все поля';
+                    errorDiv.style.display = 'block';
+                    return;
+                }
+
+                if (password.length < 6) {
+                    errorDiv.textContent = 'Пароль должен быть не менее 6 символов';
+                    errorDiv.style.display = 'block';
+                    return;
+                }
+
+                if (password !== confirmPassword) {
+                    errorDiv.textContent = 'Пароли не совпадают';
+                    errorDiv.style.display = 'block';
+                    return;
+                }
+
+                const checkbox = document.getElementById('personalData');
+                if (!checkbox.checked) {
+                    errorDiv.textContent = 'Подтвердите согласие с правилами';
+                    errorDiv.style.display = 'block';
+                    return;
+                }
+
+                console.log('Отправка данных:', { email, name });
+
+                try {
+                    const response = await fetch('/api/auth/register/send-code', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ email, password, name })
+                    });
+
+                    console.log('Response status:', response.status);
+
+                    const result = await response.json();
+                    console.log('Response:', result);
+
+                    if (result.success) {
+                        successDiv.textContent = result.message || 'Код подтверждения отправлен на email!';
+                        successDiv.style.display = 'block';
+
+                        // Сохраняем данные для следующего шага
+                        sessionStorage.setItem('registrationEmail', email);
+                        sessionStorage.setItem('registrationName', name);
+                        sessionStorage.setItem('registrationPassword', password);
+                        if (result.registrationId) {
+                            sessionStorage.setItem('registrationId', result.registrationId);
+                        }
+
+                        // Через 2 секунды переходим на страницу ввода кода
+                        setTimeout(() => {
+                            window.location.href = '/codeEmail?type=registration';
+                        }, 2000);
+                    } else {
+                        errorDiv.textContent = result.message || 'Ошибка при отправке';
+                        errorDiv.style.display = 'block';
+                    }
+                } catch (error) {
+                    console.error('Ошибка:', error);
+                    errorDiv.textContent = 'Ошибка соединения с сервером. Убедитесь, что сервер запущен.';
+                    errorDiv.style.display = 'block';
+                }
+            });
+        } else {
+            console.error('Форма с id="registerForm" не найдена!');
+        }
+    });
+</script>
 </body>
 </html>
