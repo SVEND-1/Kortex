@@ -8,6 +8,10 @@ import org.example.authservice.api.dto.request.LoginRequest;
 import org.example.authservice.api.dto.request.RegisterCodeRequest;
 import org.example.authservice.api.dto.request.ResetPasswordRequest;
 import org.example.authservice.api.dto.request.VerifyRegisterRequest;
+import org.example.authservice.api.dto.response.LoginResponse;
+import org.example.authservice.api.dto.response.PasswordResetResponse;
+import org.example.authservice.api.dto.response.RegistrationResponse;
+import org.example.authservice.api.dto.response.SimpleResponse;
 import org.example.authservice.domain.AuthService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -30,7 +34,7 @@ public class AuthController {
 
     @Operation(summary = "Вход в систему существуещего пользователя")
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody @Valid LoginRequest loginRequest,
+    public ResponseEntity<LoginResponse> login(@RequestBody @Valid LoginRequest loginRequest,
                                    HttpServletResponse response) {
         return ResponseEntity.ok(authService.login(loginRequest, response));
     }
@@ -43,13 +47,13 @@ public class AuthController {
 
     @Operation(summary = "Заполения полей для регистации и отправка кода")
     @PostMapping("/register/send-code")
-    public ResponseEntity<?> sendRegistrationCode(@RequestBody @Valid RegisterCodeRequest request) {
+    public ResponseEntity<RegistrationResponse> sendRegistrationCode(@RequestBody @Valid RegisterCodeRequest request) {
         return ResponseEntity.ok(authService.sendRegistrationCode(request));
     }
 
     @Operation(summary = "Подтверждение регистрации и создания пользователя")
     @PostMapping("/register/verify")
-    public ResponseEntity<?> verifyRegistration(
+    public ResponseEntity<LoginResponse> verifyRegistration(
             @RequestBody @Valid VerifyRegisterRequest request,
             HttpServletResponse response) {
         return ResponseEntity.ok(authService.verifyRegistration(request, response));
@@ -57,19 +61,19 @@ public class AuthController {
 
     @Operation(summary = "Повторная отправка кода")
     @PostMapping("/register/resend-code")
-    public ResponseEntity<?> resendVerificationCode(@RequestParam String registrationId) {
+    public ResponseEntity<SimpleResponse> resendVerificationCode(@RequestParam String registrationId) {
         return ResponseEntity.ok(authService.resendVerificationCode(registrationId));
     }
 
     @Operation(summary = "Заполнения email пользователя который забыл пароль и отправка кода")
     @PostMapping("/password/forgot")
-    public ResponseEntity<?> forgotPassword(@RequestParam String email) {
+    public ResponseEntity<PasswordResetResponse> forgotPassword(@RequestParam String email) {
         return ResponseEntity.ok(authService.forgotPassword(email));
     }
 
     @Operation(summary = "Подтверждение кода")
     @PostMapping("/password/verify")
-    public ResponseEntity<?> verifyResetCode(
+    public ResponseEntity<PasswordResetResponse> verifyResetCode(
             @RequestParam String resetId,
             @RequestParam String code) {
         return ResponseEntity.ok(authService.verifyResetCode(resetId, code));
@@ -77,7 +81,7 @@ public class AuthController {
 
     @Operation(summary = "Смена пароля пользователя")
     @PostMapping("/password/reset")
-    public ResponseEntity<?> resetPassword(
+    public ResponseEntity<LoginResponse> resetPassword(
             @RequestBody @Valid ResetPasswordRequest request,
             HttpServletResponse response) {
         return ResponseEntity.ok(authService.resetPassword(request, response));

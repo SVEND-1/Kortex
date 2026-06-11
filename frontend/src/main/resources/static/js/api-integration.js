@@ -10,11 +10,6 @@ const API = {
     PASSWORD_RESET: '/api/auth/password/reset',
 };
 
-const STORAGE_KEYS = {
-    REGISTRATION: 'pendingRegistration',
-    PASSWORD_RESET: 'pendingPasswordReset',
-};
-
 // ========== ИНИЦИАЛИЗАЦИЯ ==========
 document.addEventListener('DOMContentLoaded', function () {
     console.log('=== API интеграция загружена ===');
@@ -29,7 +24,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Логин
-    const loginForm = document.getElementById('loginForm') || document.querySelector('.loginForm');
+    const loginForm = document.getElementById('loginForm');
     if (loginForm) {
         loginForm.addEventListener('submit', async function (e) {
             e.preventDefault();
@@ -37,7 +32,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Восстановление пароля
+    // Восстановление пароля (отправка email)
     const forgotPasswordBtn = document.getElementById('continueBtn');
     if (forgotPasswordBtn) {
         forgotPasswordBtn.addEventListener('click', async function () {
@@ -63,7 +58,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Сброс пароля (новая форма)
+    // Сброс пароля
     const resetPasswordForm = document.getElementById('resetPasswordForm');
     if (resetPasswordForm) {
         resetPasswordForm.addEventListener('submit', async function (e) {
@@ -86,9 +81,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
 // ========== ВСПОМОГАТЕЛЬНАЯ: получить ID из URL ==========
 
-/**
- * Получает registrationId — только из URL (?id=...)
- */
 function getRegistrationId() {
     const urlParams = new URLSearchParams(window.location.search);
     const urlId = urlParams.get('id');
@@ -161,7 +153,6 @@ async function handleRegistration(e) {
             console.log('registrationId получен:', result.registrationId);
             showSuccessMessage(result.message || 'Код подтверждения отправлен на email');
 
-            // ID передаём в URL
             setTimeout(() => {
                 window.location.href = `/codeEmail?type=registration&id=${result.registrationId}`;
             }, 1500);
@@ -225,7 +216,7 @@ async function handleLogin(e) {
     }
 }
 
-// 3. ВОССТАНОВЛЕНИЕ ПАРОЛЯ
+// 3. ВОССТАНОВЛЕНИЕ ПАРОЛЯ (ОТПРАВКА EMAIL)
 async function handleForgotPassword() {
     try {
         const emailInput = document.getElementById('forgotPasswordEmail') ||
@@ -332,7 +323,9 @@ async function handleCodeConfirmation() {
 
             if (result.success) {
                 showSuccessMessage(result.message || 'Код подтверждён!');
-                setTimeout(() => { window.location.href = '/recoveryPassword?type=reset&id=' + resetId; }, 1000);
+                setTimeout(() => {
+                    window.location.href = `/recoveryPassword?type=reset&id=${resetId}`;
+                }, 1000);
             } else {
                 showErrorMessage(result.message || 'Неверный код');
             }
@@ -349,7 +342,7 @@ async function handleCodeConfirmation() {
     }
 }
 
-// 5. СБРОС ПАРОЛЯ
+// 5. СБРОС ПАРОЛЯ (УСТАНОВКА НОВОГО ПАРОЛЯ)
 async function handlePasswordReset() {
     try {
         const passwordInput = document.getElementById('recoveryPassword');
@@ -385,21 +378,27 @@ async function handlePasswordReset() {
         const response = await fetch(API.PASSWORD_RESET, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ resetId, newPassword: password, confirmPassword }),
+            body: JSON.stringify({
+                resetId: resetId,
+                newPassword: password,
+                confirmPassword: confirmPassword
+            }),
         });
 
         const result = await response.json();
 
         if (result.success) {
             showSuccessMessage(result.message || 'Пароль изменён!');
-            setTimeout(() => { window.location.href = result.redirectUrl || '/login'; }, 1000);
+            setTimeout(() => {
+                window.location.href = result.redirectUrl || '/login';
+            }, 1000);
         } else {
             showErrorMessage(result.message || 'Не удалось изменить пароль');
         }
 
     } catch (error) {
         console.error('Ошибка при сбросе пароля:', error);
-        showErrorMessage('Произошла ошибка');
+        showErrorMessage('Произошла ошибка: ' + error.message);
     } finally {
         showLoading(false);
     }
@@ -436,7 +435,6 @@ async function handleResendCode() {
             }
 
         } else if (type === 'reset') {
-            // Для восстановления пароля получаем email из URL параметра или из предыдущего запроса
             const resetId = getResetId();
 
             if (!resetId) {
@@ -444,7 +442,6 @@ async function handleResendCode() {
                 return;
             }
 
-            // Отправляем запрос на повторную отправку кода
             const response = await fetch(
                 `${API.PASSWORD_FORGOT}?resetId=${encodeURIComponent(resetId)}`,
                 { method: 'POST', credentials: 'include' }
@@ -453,7 +450,6 @@ async function handleResendCode() {
             const result = await response.json();
 
             if (result.success) {
-                // Обновляем URL с новым resetId, если он пришёл
                 if (result.resetId) {
                     const newUrl = `/codeEmail?type=reset&id=${result.resetId}`;
                     window.history.replaceState(null, '', newUrl);
@@ -592,6 +588,7 @@ function showMessage(message, type) {
         animation: slideIn 0.3s ease-out;
         background-color: ${type === 'success' ? '#4CAF50' : '#f44336'};
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        z-index: 10000;
     `;
     document.body.appendChild(alertDiv);
 
@@ -624,7 +621,8 @@ function showLoading(show) {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background-color: rgba(255,255,255,0.8);
             display: flex; justify-content: center; align-items: center;
-            z-index: 9998; backdrop-filter: blur(2px);
+            z-index: 9999;
+            backdrop-filter: blur(2px);
         `;
         const spinner = document.createElement('div');
         spinner.style.cssText = `
