@@ -11,81 +11,92 @@ public class GatewayRoutesConfig {
     @Bean
     public RouteLocator customRouteLocator(RouteLocatorBuilder builder) {
         return builder.routes()
-                // Auth Service
-                .route("auth-service", r -> r
-                        .path("/api/auth/**","/swagger-ui.html/**")
-                        .filters(f -> f.stripPrefix(0))
-                        .uri("http://localhost:8081"))//todo можнл сделать id приложение возможно будет lb://auth-service
 
-                // Product Service
+                // ── Auth Service ──────────────────────────────────────────
+                // Один маршрут на все /api/auth/** — JwtFilter сам разберёт
+                // что публично, а что требует JWT
+                .route("auth-service", r -> r
+                        .path("/api/auth/**")
+                        .filters(f -> f.stripPrefix(0))
+                        .uri("http://localhost:8081"))
+
+                // ── Product Service ───────────────────────────────────────
                 .route("product-service", r -> r
                         .path("/api/products/**")
                         .filters(f -> f.stripPrefix(0))
                         .uri("http://localhost:8082"))
 
-                // Order Service
+                // ── Order Service ─────────────────────────────────────────
                 .route("order-service", r -> r
                         .path("/api/orders/**")
                         .filters(f -> f.stripPrefix(0))
                         .uri("http://localhost:8083"))
 
-                // Payment Service
+                // ── Payment Service ───────────────────────────────────────
                 .route("payment-service", r -> r
                         .path("/api/payments/**")
                         .filters(f -> f.stripPrefix(0))
                         .uri("http://localhost:8084"))
 
-                // Cart Service
+                // ── Cart Service ──────────────────────────────────────────
                 .route("cart-service", r -> r
                         .path("/api/cart/**")
                         .filters(f -> f.stripPrefix(0))
                         .uri("http://localhost:8085"))
 
-                // Delivery Service
+                // ── Delivery Service ──────────────────────────────────────
                 .route("delivery-service", r -> r
                         .path("/api/delivery/**")
                         .filters(f -> f.stripPrefix(0))
                         .uri("http://localhost:8086"))
 
-                // Admin Service
+                // ── Admin Service ─────────────────────────────────────────
                 .route("admin-service", r -> r
                         .path("/api/admin/**")
                         .filters(f -> f.stripPrefix(0))
                         .uri("http://localhost:8087"))
 
-                // Notification Service
+                // ── Notification Service ──────────────────────────────────
                 .route("notification-service", r -> r
                         .path("/api/notifications/**")
                         .filters(f -> f.stripPrefix(0))
                         .uri("http://localhost:8088"))
 
-                // Публичные эндпоинты (без JWT)
-                .route("auth-public", r -> r
-                        .path("/api/auth/login", "/api/auth/register",
-                                "/api/auth/send-code", "/api/auth/verify",
-                                "/api/auth/forgot-password", "/api/auth/reset-password")
-                        .filters(f -> f.stripPrefix(0))
-                        .uri("http://localhost:8081"))
-
-                .route("products-public", r -> r
-                        .path("/api/products/public/**")
-                        .filters(f -> f.stripPrefix(0))
-                        .uri("http://localhost:8082"))
-
-                // Frontend (если есть)
+                // ── Frontend (статика и страницы) ─────────────────────────
+                // JwtFilter уже пропускает эти пути без проверки JWT
                 .route("frontend", r -> r
-                        .path("/","/login","/register", "/index.html",
-                                "/codeEmail","/forgotPassword","/resetPassword",
-                                "/recoveryPassword","/seller","/admin","/profile",
-                                "/cart","/productForm","/courier","/checkout","/error",
-                                "/css/**", "/js/**", "/images/**")
+                        .path(
+                                "/",
+                                "/login", "/register",
+                                "/codeEmail", "/forgotPassword",
+                                "/resetPassword", "/recoveryPassword",
+                                "/seller", "/admin", "/profile",
+                                "/cart", "/productForm", "/courier",
+                                "/checkout", "/error",
+                                "/index.html",
+                                "/css/**", "/js/**", "/images/**",
+                                "/favicon.ico", "/favicon.png"
+                        )
+                        .filters(f -> f.stripPrefix(0))
                         .uri("http://localhost:3000"))
 
-                // Default (fallback)
-                .route("fallback", r -> r
-                        .path("/**")
-                        .filters(f -> f.setPath("/api/fallback"))
+                // ── Actuator (для health-check, мониторинга) ──────────────
+                .route("actuator", r -> r
+                        .path("/actuator/**")
+                        .filters(f -> f.stripPrefix(0))
                         .uri("http://localhost:8080"))
+
+                // ВНИМАНИЕ: fallback убран намеренно.
+                // Неизвестные пути будут возвращать 404 от Gateway — это правильно.
+                // Если нужен fallback-контроллер, добавь его прямо в Gateway:
+                //
+                // @RestController
+                // public class FallbackController {
+                //     @RequestMapping("/api/fallback")
+                //     public ResponseEntity<?> fallback() {
+                //         return ResponseEntity.status(404).body(Map.of("error", "Not found"));
+                //     }
+                // }
 
                 .build();
     }

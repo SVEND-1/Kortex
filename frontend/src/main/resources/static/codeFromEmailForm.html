@@ -7,7 +7,6 @@
     <link rel="stylesheet" href="/css/authStyle.css">
     <title>Подтверждение кода</title>
     <style>
-        /* Инлайн стиль для гарантии, что цифры будут видны */
         .code-input {
             display: inline-flex !important;
             align-items: center !important;
@@ -37,12 +36,10 @@
                     <img src="/images/cart-img.png" alt="Корзина" class="nav-icon">
                     Корзина
                 </a>
-
                 <a href="/profile" class="nav-link">
                     <img src="/images/profile-img.png" alt="Профиль" class="nav-icon profile-icon">
                     <span class="profile-text">Профиль</span>
                 </a>
-
                 <a href="/login" class="nav-link">
                     <img src="/images/join-img.png" alt="Войти" class="nav-icon">
                     Войти
@@ -51,7 +48,6 @@
         </div>
     </div>
 </header>
-
 
 <!-- Форма ввода кода -->
 <main class="auth-container">
@@ -96,115 +92,7 @@
     </div>
 </main>
 
-<script>
-    // Таймер
-    let timerInterval;
-    let timeLeft = 60;
-
-    function startTimer() {
-        const timerElement = document.getElementById('timer');
-        const resendBtn = document.getElementById('resendCodeBtn');
-
-        resendBtn.disabled = true;
-        resendBtn.style.opacity = '0.6';
-        resendBtn.style.cursor = 'not-allowed';
-
-        timerInterval = setInterval(() => {
-            timeLeft--;
-
-            const minutes = Math.floor(timeLeft / 60);
-            const seconds = timeLeft % 60;
-            const formattedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-
-            timerElement.textContent = formattedTime;
-
-            if (timeLeft <= 0) {
-                clearInterval(timerInterval);
-                resendBtn.disabled = false;
-                resendBtn.style.opacity = '1';
-                resendBtn.style.cursor = 'pointer';
-                timerElement.textContent = 'Код истек';
-            }
-        }, 1000);
-    }
-
-    function setupCodeInputs() {
-        const codeInputs = document.querySelectorAll('.code-input');
-
-        codeInputs.forEach((input, index) => {
-            input.addEventListener('input', function(e) {
-                this.value = this.value.replace(/\D/g, '');
-
-                if (this.value.length === 1 && index < codeInputs.length - 1) {
-                    codeInputs[index + 1].focus();
-                    codeInputs[index + 1].select();
-                }
-
-                this.classList.toggle('filled', this.value !== '');
-            });
-
-            input.addEventListener('keydown', function(e) {
-                if (e.key === 'Backspace' && !this.value && index > 0) {
-                    codeInputs[index - 1].focus();
-                    codeInputs[index - 1].select();
-                }
-
-                if (e.key === 'ArrowLeft' && index > 0) {
-                    e.preventDefault();
-                    codeInputs[index - 1].focus();
-                    codeInputs[index - 1].select();
-                }
-
-                if (e.key === 'ArrowRight' && index < codeInputs.length - 1) {
-                    e.preventDefault();
-                    codeInputs[index + 1].focus();
-                    codeInputs[index + 1].select();
-                }
-            });
-
-            input.addEventListener('paste', function(e) {
-                e.preventDefault();
-                const pastedData = e.clipboardData.getData('text');
-                const digits = pastedData.replace(/\D/g, '').split('');
-
-                for (let i = 0; i < Math.min(digits.length, codeInputs.length); i++) {
-                    codeInputs[i].value = digits[i];
-                    codeInputs[i].classList.add('filled');
-                }
-
-                const lastIndex = Math.min(digits.length, codeInputs.length) - 1;
-                if (lastIndex >= 0) {
-                    codeInputs[lastIndex].focus();
-                    codeInputs[lastIndex].select();
-                }
-            });
-
-            input.addEventListener('click', function() {
-                this.select();
-            });
-        });
-    }
-
-    function resetTimer() {
-        clearInterval(timerInterval);
-        timeLeft = 60;
-        document.getElementById('timer').textContent = '01:00';
-        startTimer();
-    }
-
-    document.addEventListener('DOMContentLoaded', function() {
-        setupCodeInputs();
-        startTimer();
-
-        document.getElementById('resendCodeBtn').addEventListener('click', function() {
-            if (!this.disabled) {
-                resetTimer();
-                alert('Новый код отправлен на почту');
-            }
-        });
-    });
-</script>
-
+<!-- ВАЖНО: codeFromEmail.js первым (определяет window.resetTimer до api-integration.js) -->
 <script src="/js/codeFromEmail.js"></script>
 <script src="/js/api-integration.js"></script>
 </body>

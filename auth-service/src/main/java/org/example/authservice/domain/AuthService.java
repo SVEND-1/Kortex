@@ -4,6 +4,8 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.authservice.api.dto.cahce.RegistrationData;
+import org.example.authservice.api.dto.cahce.ResetData;
 import org.example.authservice.api.dto.request.LoginRequest;
 import org.example.authservice.api.dto.request.RegisterCodeRequest;
 import org.example.authservice.api.dto.request.ResetPasswordRequest;
@@ -13,6 +15,8 @@ import org.example.authservice.api.dto.response.PasswordResetResponse;
 import org.example.authservice.api.dto.response.RegistrationResponse;
 import org.example.authservice.api.dto.response.SimpleResponse;
 import org.example.authservice.config.JwtTokenProvider;
+import org.example.authservice.db.PendingRegistrationRepository;
+import org.example.authservice.db.PendingResetRepository;
 import org.example.authservice.db.Role;
 import org.example.authservice.db.UserEntity;
 import org.example.authservice.db.UserRepository;
@@ -27,8 +31,10 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -40,10 +46,11 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final AuthenticationManager authenticationManager;
-
-    private static final Map<String, RegistrationData> pendingRegistrations = new ConcurrentHashMap<>();
-    private static final Map<String, ResetData> passwordResets = new ConcurrentHashMap<>();
     private final VerificationCodeGenerator verificationCodeGenerator;
+
+    // Redis-репозитории вместо ConcurrentHashMap
+    private final PendingRegistrationRepository pendingRegistrationRepository;
+    private final PendingResetRepository pendingResetRepository;
 
     public LoginResponse login(LoginRequest loginRequest, HttpServletResponse response) {
         try {
@@ -66,8 +73,6 @@ public class AuthService {
             cookie.setHttpOnly(true);
             cookie.setPath("/");
             cookie.setMaxAge(24 * 60 * 60);
-            cookie.setSecure(false);
-            cookie.setDomain("localhost");
             response.addCookie(cookie);
             log.debug("Куки сохранены");
 
@@ -103,8 +108,6 @@ public class AuthService {
             cookie.setPath("/");
             cookie.setHttpOnly(true);
             cookie.setMaxAge(0);
-            cookie.setSecure(false);
-            cookie.setDomain("localhost");
             response.addCookie(cookie);
 
             return new SimpleResponse(true, "Успешный выход");
@@ -139,7 +142,8 @@ public class AuthService {
                 tempUser.setName(request.name());
             }
 
-            pendingRegistrations.put(registrationId,
+            // Сохранение в Redis (TTL управляется репозиторием)
+            pendingRegistrationRepository.save(registrationId,
                     new RegistrationData(tempUser, verificationCode));
 
             NotifyEvent notifyEvent = new NotifyEvent(
@@ -148,8 +152,6 @@ public class AuthService {
                     NotifyType.REGISTER
             );
             kafkaProducer.sendMessageToKafka(notifyEvent);
-
-            cleanupExpiredData();
 
             log.info("Код подтверждения отправлен на email={}", email);
             return new RegistrationResponse(true, "Код подтверждения отправлен на email", registrationId);
@@ -164,22 +166,18 @@ public class AuthService {
         try {
             log.info("Подтверждение регистрации для ID={}", request.registrationId());
 
-            RegistrationData data = pendingRegistrations.get(request.registrationId());
+            RegistrationData data = pendingRegistrationRepository.get(request.registrationId());
 
             if (data == null) {
-                return new SimpleResponse(false, "Регистрация не найдена");
+                // null означает либо отсутствие, либо истёкший TTL в Redis
+                return new SimpleResponse(false, "Регистрация не найдена или время действия кода истекло");
             }
 
-            if (data.isExpired()) {
-                pendingRegistrations.remove(request.registrationId());
-                return new SimpleResponse(false, "Время действия кода истекло");
-            }
-
-            if (!request.code().equals(data.verificationCode)) {
+            if (!request.code().equals(data.getVerificationCode())) {
                 return new SimpleResponse(false, "Неверный код подтверждения");
             }
 
-            UserEntity user = data.user;
+            UserEntity user = data.getUser();
             user.setRole(Role.USER);
 
             UserEntity savedUser = userRepository.save(user);
@@ -189,8 +187,6 @@ public class AuthService {
             cookie.setHttpOnly(true);
             cookie.setPath("/");
             cookie.setMaxAge(24 * 60 * 60);
-            cookie.setSecure(false);
-            cookie.setDomain("localhost");
             response.addCookie(cookie);
 
             Set<SimpleGrantedAuthority> roles = Collections.singleton(Role.USER.toAuthority());
@@ -198,7 +194,7 @@ public class AuthService {
                     savedUser.getEmail(), null, roles);
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            pendingRegistrations.remove(request.registrationId());
+            pendingRegistrationRepository.delete(request.registrationId());
 
             log.info("Пользователь создан id={}, email={}", savedUser.getId(), savedUser.getEmail());
             return new LoginResponse(true, "Регистрация успешно завершена");
@@ -213,25 +209,28 @@ public class AuthService {
         try {
             log.info("Повторная отправка кода для registrationId={}", registrationId);
 
-            RegistrationData data = pendingRegistrations.get(registrationId);
+            RegistrationData data = pendingRegistrationRepository.get(registrationId);
 
-            if (data == null || data.isExpired()) {
+            if (data == null) {
                 log.error("Регистрация не найдена или истекла");
                 return new SimpleResponse(false, "Регистрация не найдена или истекла");
             }
 
             String newCode = verificationCodeGenerator.generateVerificationCode();
-            data.verificationCode = newCode;
-            data.timestamp = System.currentTimeMillis();
+            data.setVerificationCode(newCode);
+            data.setTimestamp(System.currentTimeMillis());
+
+            // Перезаписываем запись и сбрасываем TTL
+            pendingRegistrationRepository.save(registrationId, data);
 
             NotifyEvent notifyEvent = new NotifyEvent(
-                    data.user.getEmail(),
+                    data.getUser().getEmail(),
                     Map.of("code", newCode),
                     NotifyType.REPLAY_CODE
             );
             kafkaProducer.sendMessageToKafka(notifyEvent);
 
-            log.info("Новый код отправлен на email: {}", data.user.getEmail());
+            log.info("Новый код отправлен на email: {}", data.getUser().getEmail());
             return new SimpleResponse(true, "Новый код отправлен на email");
 
         } catch (Exception e) {
@@ -250,10 +249,11 @@ public class AuthService {
                 return new SimpleResponse(false, "Пользователь с таким email не найден");
             }
 
-            String resetCode =  verificationCodeGenerator.generateVerificationCode();
+            String resetCode = verificationCodeGenerator.generateVerificationCode();
             String resetId = UUID.randomUUID().toString();
 
-            passwordResets.put(resetId, new ResetData(email, resetCode));
+            // Сохранение в Redis (TTL управляется репозиторием)
+            pendingResetRepository.save(resetId, new ResetData(email, resetCode));
 
             NotifyEvent notifyEvent = new NotifyEvent(
                     email,
@@ -275,14 +275,15 @@ public class AuthService {
         try {
             log.info("Проверка кода сброса пароля для resetId={}", resetId);
 
-            ResetData data = passwordResets.get(resetId);
+            ResetData data = pendingResetRepository.get(resetId);
 
-            if (data == null || data.isExpired()) {
+            if (data == null) {
+                // null означает либо отсутствие, либо истёкший TTL в Redis
                 log.error("Код не найден или истек");
                 return new SimpleResponse(false, "Код не найден или истек");
             }
 
-            if (!code.equals(data.code)) {
+            if (!code.equals(data.getCode())) {
                 log.error("Неверный код подтверждения");
                 return new SimpleResponse(false, "Неверный код подтверждения");
             }
@@ -298,27 +299,26 @@ public class AuthService {
 
     public Object resetPassword(ResetPasswordRequest request, HttpServletResponse response) {
         try {
-            ResetData data = passwordResets.get(request.resetId());
+            ResetData data = pendingResetRepository.get(request.resetId());
 
             if (data == null) {
                 log.error("Недействительный запрос сброса");
                 return new SimpleResponse(false, "Недействительный запрос сброса");
             }
 
-            log.info("Смена пароля для пользователя с email: {}", data.email);
+            log.info("Смена пароля для пользователя с email: {}", data.getEmail());
 
             if (!request.newPassword().equals(request.confirmPassword())) {
                 log.error("Пароли не совпадают");
                 return new SimpleResponse(false, "Пароли не совпадают");
             }
 
-            UserEntity user = userRepository.findByEmailEqualsIgnoreCase(data.email);
+            UserEntity user = userRepository.findByEmailEqualsIgnoreCase(data.getEmail());
             if (user == null) {
                 log.error("Пользователь не найден");
                 return new SimpleResponse(false, "Пользователь не найден");
             }
 
-            // Смена пароля
             user.setPassword(passwordEncoder.encode(request.newPassword()));
             UserEntity savedUser = userRepository.save(user);
 
@@ -337,54 +337,18 @@ public class AuthService {
             response.addCookie(cookie);
 
             Set<SimpleGrantedAuthority> roles = Collections.singleton(savedUser.getRole().toAuthority());
-            Authentication authentication = new UsernamePasswordAuthenticationToken(savedUser.getEmail(), null, roles);
+            Authentication authentication = new UsernamePasswordAuthenticationToken(
+                    savedUser.getEmail(), null, roles);
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            passwordResets.remove(request.resetId());
+            pendingResetRepository.delete(request.resetId());
 
-            log.info("Пароль успешно изменен для пользователя: {}", data.email);
+            log.info("Пароль успешно изменен для пользователя: {}", data.getEmail());
             return new LoginResponse(true, "Пароль успешно изменен");
 
         } catch (Exception e) {
             log.error("Ошибка при сбросе пароля: {}", e.getMessage());
             return new SimpleResponse(false, "Ошибка при сбросе пароля: " + e.getMessage());
-        }
-    }
-
-    private void cleanupExpiredData() {
-        pendingRegistrations.entrySet().removeIf(entry -> entry.getValue().isExpired());
-        passwordResets.entrySet().removeIf(entry -> entry.getValue().isExpired());
-    }
-
-    private static class RegistrationData {
-        UserEntity user;
-        String verificationCode;
-        long timestamp;
-
-        RegistrationData(UserEntity user, String verificationCode) {
-            this.user = user;
-            this.verificationCode = verificationCode;
-            this.timestamp = System.currentTimeMillis();
-        }
-
-        boolean isExpired() {
-            return System.currentTimeMillis() - timestamp > 15 * 60 * 1000;
-        }
-    }
-
-    private static class ResetData {
-        String email;
-        String code;
-        long timestamp;
-
-        ResetData(String email, String code) {
-            this.email = email;
-            this.code = code;
-            this.timestamp = System.currentTimeMillis();
-        }
-
-        boolean isExpired() {
-            return System.currentTimeMillis() - timestamp > 15 * 60 * 1000;
         }
     }
 }

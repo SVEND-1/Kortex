@@ -44,8 +44,8 @@
     <div class="auth-form">
         <h2 class="registerH2">Регистрация</h2>
 
-        <div id="errorMessage" class="error-message" style="display: none; color: red; margin-bottom: 15px; padding: 10px; background: #ffebee; border-radius: 5px;"></div>
-        <div id="successMessage" class="success-message" style="display: none; color: green; margin-bottom: 15px; padding: 10px; background: #e8f5e9; border-radius: 5px;"></div>
+        <div id="errorMessage" class="error-message" style="display:none; color:red; margin-bottom:15px; padding:10px; background:#ffebee; border-radius:5px;"></div>
+        <div id="successMessage" class="success-message" style="display:none; color:green; margin-bottom:15px; padding:10px; background:#e8f5e9; border-radius:5px;"></div>
 
         <form class="loginForm" id="registerForm">
             <label>Имя</label>
@@ -76,102 +76,86 @@
 </main>
 
 <script>
-    // Прямой скрипт на странице (без внешних файлов для теста)
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('Страница регистрации загружена');
-
+    document.addEventListener('DOMContentLoaded', function () {
         const form = document.getElementById('registerForm');
         const errorDiv = document.getElementById('errorMessage');
         const successDiv = document.getElementById('successMessage');
 
-        if (form) {
-            console.log('Форма найдена, добавляем обработчик');
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
 
-            form.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                console.log('Форма отправлена');
+            errorDiv.style.display = 'none';
+            successDiv.style.display = 'none';
 
-                // Скрываем старые сообщения
-                errorDiv.style.display = 'none';
-                successDiv.style.display = 'none';
+            const name = document.getElementById('name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
 
-                // Получаем данные
-                const name = document.getElementById('name').value.trim();
-                const email = document.getElementById('email').value.trim();
-                const password = document.getElementById('password').value;
-                const confirmPassword = document.getElementById('confirmPassword').value;
+            if (!name || !email || !password || !confirmPassword) {
+                errorDiv.textContent = 'Заполните все поля';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            if (name.length < 2) {
+                errorDiv.textContent = 'Имя должно быть не менее 2 символов';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            if (password.length < 6) {
+                errorDiv.textContent = 'Пароль должен быть не менее 6 символов';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            if (password !== confirmPassword) {
+                errorDiv.textContent = 'Пароли не совпадают';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            if (!document.getElementById('personalData').checked) {
+                errorDiv.textContent = 'Подтвердите согласие с правилами';
+                errorDiv.style.display = 'block';
+                return;
+            }
 
-                // Валидация
-                if (!name || !email || !password || !confirmPassword) {
-                    errorDiv.textContent = 'Заполните все поля';
-                    errorDiv.style.display = 'block';
-                    return;
-                }
+            try {
+                const response = await fetch('/api/auth/register/send-code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password, name })
+                });
 
-                if (password.length < 6) {
-                    errorDiv.textContent = 'Пароль должен быть не менее 6 символов';
-                    errorDiv.style.display = 'block';
-                    return;
-                }
+                const result = await response.json();
+                console.log('Ответ сервера:', result);
 
-                if (password !== confirmPassword) {
-                    errorDiv.textContent = 'Пароли не совпадают';
-                    errorDiv.style.display = 'block';
-                    return;
-                }
-
-                const checkbox = document.getElementById('personalData');
-                if (!checkbox.checked) {
-                    errorDiv.textContent = 'Подтвердите согласие с правилами';
-                    errorDiv.style.display = 'block';
-                    return;
-                }
-
-                console.log('Отправка данных:', { email, name });
-
-                try {
-                    const response = await fetch('/api/auth/register/send-code', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ email, password, name })
-                    });
-
-                    console.log('Response status:', response.status);
-
-                    const result = await response.json();
-                    console.log('Response:', result);
-
-                    if (result.success) {
-                        successDiv.textContent = result.message || 'Код подтверждения отправлен на email!';
-                        successDiv.style.display = 'block';
-
-                        // Сохраняем данные для следующего шага
-                        sessionStorage.setItem('registrationEmail', email);
-                        sessionStorage.setItem('registrationName', name);
-                        sessionStorage.setItem('registrationPassword', password);
-                        if (result.registrationId) {
-                            sessionStorage.setItem('registrationId', result.registrationId);
-                        }
-
-                        // Через 2 секунды переходим на страницу ввода кода
-                        setTimeout(() => {
-                            window.location.href = '/codeEmail?type=registration';
-                        }, 2000);
-                    } else {
-                        errorDiv.textContent = result.message || 'Ошибка при отправке';
+                if (result.success) {
+                    if (!result.registrationId) {
+                        errorDiv.textContent = 'Ошибка сервера: не получен ID регистрации';
                         errorDiv.style.display = 'block';
+                        return;
                     }
-                } catch (error) {
-                    console.error('Ошибка:', error);
-                    errorDiv.textContent = 'Ошибка соединения с сервером. Убедитесь, что сервер запущен.';
+
+                    console.log('registrationId получен:', result.registrationId);
+
+                    successDiv.textContent = result.message || 'Код подтверждения отправлен на email!';
+                    successDiv.style.display = 'block';
+
+                    // Передаём id в URL — это основной способ передачи на следующую страницу
+                    setTimeout(() => {
+                        window.location.href = `/codeEmail?type=registration&id=${result.registrationId}`;
+                    }, 1500);
+
+                } else {
+                    errorDiv.textContent = result.message || 'Ошибка при отправке';
                     errorDiv.style.display = 'block';
                 }
-            });
-        } else {
-            console.error('Форма с id="registerForm" не найдена!');
-        }
+
+            } catch (error) {
+                console.error('Ошибка:', error);
+                errorDiv.textContent = 'Ошибка соединения с сервером';
+                errorDiv.style.display = 'block';
+            }
+        });
     });
 </script>
 </body>

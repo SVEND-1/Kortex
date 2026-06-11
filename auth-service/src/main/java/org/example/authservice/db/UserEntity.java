@@ -9,7 +9,7 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 @Entity
-@Table(name = "users")
+@Table(name = "users",schema = "auth")
 public class UserEntity {
 
     @Id

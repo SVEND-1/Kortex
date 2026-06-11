@@ -13,6 +13,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/auth")
 @Tag(name = "Auth", description = "Управление авторизацией")
@@ -25,10 +27,6 @@ public class AuthController {
         this.authService = authService;
     }
 
-    @GetMapping("/test")
-    public String test() {
-        return "Hello World";
-    }
 
     @Operation(summary = "Вход в систему существуещего пользователя")
     @PostMapping("/login")
