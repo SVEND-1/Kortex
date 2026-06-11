@@ -20,34 +20,26 @@ public class PendingRegistrationRepository {
     private static final String PREFIX = "pending_reg:";
     private static final long TTL_MINUTES = 5;
 
-    /** Сохранить данные регистрации с TTL 5 минут. */
     public void save(String registrationId, RegistrationData data) {
         String key = PREFIX + registrationId;
         redisTemplate.opsForValue().set(key, data, TTL_MINUTES, TimeUnit.MINUTES);
         log.debug("Сохранены данные регистрации: key={}", key);
     }
 
-    /**
-     * Получить данные регистрации.
-     * @return RegistrationData или null, если ключ не найден / истёк TTL
-     */
     public RegistrationData get(String registrationId) {
         Object raw = redisTemplate.opsForValue().get(PREFIX + registrationId);
         if (raw == null) {
             log.warn("Данные регистрации не найдены: registrationId={}", registrationId);
             return null;
         }
-        // Jackson десериализует JSON в LinkedHashMap — конвертируем в RegistrationData
         return objectMapper.convertValue(raw, RegistrationData.class);
     }
 
-    /** Удалить данные регистрации (после успешного завершения или отмены). */
     public void delete(String registrationId) {
         redisTemplate.delete(PREFIX + registrationId);
         log.debug("Удалены данные регистрации: registrationId={}", registrationId);
     }
 
-    /** Обновить TTL (используется при повторной отправке кода). */
     public void resetTtl(String registrationId) {
         redisTemplate.expire(PREFIX + registrationId, TTL_MINUTES, TimeUnit.MINUTES);
     }

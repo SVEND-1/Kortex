@@ -1,4 +1,4 @@
-package org.example.authservice.domain;
+package org.example.authservice.domain.managers;
 
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -9,7 +9,12 @@ import org.example.authservice.api.dto.request.VerifyRegisterRequest;
 import org.example.authservice.api.dto.response.LoginResponse;
 import org.example.authservice.api.dto.response.RegistrationResponse;
 import org.example.authservice.api.dto.response.SimpleResponse;
-import org.example.authservice.db.*;
+import org.example.authservice.api.dto.response.TokenResponse;
+import org.example.authservice.db.PendingRegistrationRepository;
+import org.example.authservice.db.Role;
+import org.example.authservice.db.UserEntity;
+import org.example.authservice.db.UserRepository;
+import org.example.authservice.domain.VerificationCodeGenerator;
 import org.example.authservice.domain.exception.EmailAlreadyExistsException;
 import org.example.authservice.domain.exception.InvalidVerificationCodeException;
 import org.example.authservice.domain.exception.RegistrationExpiredException;
@@ -49,14 +54,14 @@ public class RegistrationManager {
             validateEmailNotExists(email);
 
             String verificationCode = verificationCodeGenerator.generateVerificationCode();
-            String registrationId = addCacheTemp(request,verificationCode);
-            sendMessageToKafka(email,verificationCode,NotifyType.REGISTER);
+            String registrationId = addCacheTemp(request, verificationCode);
+            sendMessageToKafka(email, verificationCode, NotifyType.REGISTER);
 
             log.info("Код подтверждения отправлен на email={}", email);
             return new RegistrationResponse(true, "Код подтверждения отправлен на email", registrationId);
         } catch (Exception e) {
             log.error("Ошибка отправки кода: {}", e.getMessage());
-            throw new RuntimeException("Ошибка при отправке кода",e);
+            throw new RuntimeException("Ошибка при отправке кода", e);
         }
     }
 
@@ -67,7 +72,7 @@ public class RegistrationManager {
                 });
     }
 
-    private String addCacheTemp(RegisterCodeRequest request,String verificationCode) {
+    private String addCacheTemp(RegisterCodeRequest request, String verificationCode) {
         String registrationId = UUID.randomUUID().toString();
 
         UserEntity tempUser = new UserEntity();
@@ -86,17 +91,19 @@ public class RegistrationManager {
             log.info("Подтверждение регистрации для ID={}", request.registrationId());
             RegistrationData data = pendingRegistrationRepository.get(request.registrationId());
 
-            validateVerifyRegistration(data,request);
+            validateVerifyRegistration(data, request);
 
             UserEntity savedUser = createUser(data);
-            tokenManagementManager.createAuthCookie(savedUser.getEmail(),savedUser.getRole(),response);
+            TokenResponse tokens = tokenManagementManager.createTokenPair(
+                    savedUser.getEmail(), savedUser.getRole(), savedUser.getId());
             addToSpringSecurityContext(savedUser.getEmail());
             pendingRegistrationRepository.delete(request.registrationId());
 
-            return new LoginResponse(true, "Регистрация успешно завершена");
+            return new LoginResponse(true, "Регистрация успешно завершена",
+                    tokens.accessToken(), tokens.refreshToken());
         } catch (Exception e) {
             log.error("Ошибка при подтверждении: {}", e.getMessage());
-            throw new RuntimeException("Ошибка при подтверждении регистрации",e);
+            throw new RuntimeException("Ошибка при подтверждении регистрации", e);
         }
     }
 
@@ -106,7 +113,7 @@ public class RegistrationManager {
         return userRepository.save(user);
     }
 
-    private void validateVerifyRegistration(RegistrationData data,VerifyRegisterRequest request) {
+    private void validateVerifyRegistration(RegistrationData data, VerifyRegisterRequest request) {
         if (data == null) {
             throw new RegistrationExpiredException("Регистрация не найдена или время действия кода истекло");
         }
@@ -131,14 +138,14 @@ public class RegistrationManager {
             validResendVerificationCode(data);
 
             String newCode = verificationCodeGenerator.generateVerificationCode();
-            updateCacheCode(data,registrationId,newCode);
-            sendMessageToKafka(data.getUser().getEmail(),newCode,NotifyType.REPLAY_CODE);
+            updateCacheCode(data, registrationId, newCode);
+            sendMessageToKafka(data.getUser().getEmail(), newCode, NotifyType.REPLAY_CODE);
 
             log.info("Новый код отправлен на email: {}", data.getUser().getEmail());
             return new SimpleResponse(true, "Новый код отправлен на email");
         } catch (Exception e) {
             log.error("Ошибка отправки повторного кода: {}", e.getMessage());
-            throw new RuntimeException("Ошибка повторной отправки кода",e);
+            throw new RuntimeException("Ошибка повторной отправки кода", e);
         }
     }
 
@@ -149,14 +156,14 @@ public class RegistrationManager {
         }
     }
 
-    private void updateCacheCode(RegistrationData data,String registrationId,String verificationCode) {
+    private void updateCacheCode(RegistrationData data, String registrationId, String verificationCode) {
         data.setVerificationCode(verificationCode);
         data.setTimestamp(System.currentTimeMillis());
 
         pendingRegistrationRepository.save(registrationId, data);
     }
 
-    private void sendMessageToKafka(String email,String code,NotifyType notifyType) {
+    private void sendMessageToKafka(String email, String code, NotifyType notifyType) {
         NotifyEvent notifyEvent = new NotifyEvent(
                 email,
                 Map.of("code", code),

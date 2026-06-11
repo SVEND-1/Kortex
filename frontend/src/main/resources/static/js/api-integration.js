@@ -10,11 +10,101 @@ const API = {
     PASSWORD_RESET: '/api/auth/password/reset',
 };
 
+// ========== РАБОТА С ТОКЕНАМИ ==========
+function saveTokens(accessToken, refreshToken) {
+    if (accessToken) sessionStorage.setItem('accessToken', accessToken);
+    if (refreshToken) sessionStorage.setItem('refreshToken', refreshToken);
+    // Извлекаем email из accessToken (без проверки подписи, только для заголовка X-User-Email)
+    const email = parseEmailFromToken(accessToken);
+    if (email) sessionStorage.setItem('userEmail', email);
+}
+
+function getAccessToken() {
+    return sessionStorage.getItem('accessToken');
+}
+
+function getRefreshToken() {
+    return sessionStorage.getItem('refreshToken');
+}
+
+function getUserEmail() {
+    return sessionStorage.getItem('userEmail');
+}
+
+function clearTokens() {
+    sessionStorage.removeItem('accessToken');
+    sessionStorage.removeItem('refreshToken');
+    sessionStorage.removeItem('userEmail');
+}
+
+function parseEmailFromToken(token) {
+    if (!token) return null;
+    try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return payload.sub || payload.email || null;
+    } catch (e) {
+        console.warn('Не удалось распарсить токен', e);
+        return null;
+    }
+}
+
+// ========== ЦЕНТРАЛИЗОВАННЫЙ ЗАПРОС (добавляет Authorization) ==========
+async function apiRequest(url, options = {}) {
+    const token = getAccessToken();
+    const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers,
+    };
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(url, { ...options, headers });
+
+    // Если 401 и есть refreshToken – пробуем обновить (если эндпоинт будет добавлен)
+    if (response.status === 401 && getRefreshToken()) {
+        const refreshed = await refreshAccessToken();
+        if (refreshed) {
+            // Повторяем запрос с новым токеном
+            const newToken = getAccessToken();
+            headers['Authorization'] = `Bearer ${newToken}`;
+            return fetch(url, { ...options, headers });
+        } else {
+            clearTokens();
+            window.location.href = '/login';
+            throw new Error('Сессия истекла');
+        }
+    }
+    return response;
+}
+
+// Заглушка для обновления – реализуйте, когда добавите /api/auth/refresh
+async function refreshAccessToken() {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return false;
+    try {
+        // Пример запроса:
+        // const res = await fetch('/api/auth/refresh', {
+        //     method: 'POST',
+        //     headers: { 'Content-Type': 'application/json' },
+        //     body: JSON.stringify({ refreshToken }),
+        // });
+        // if (res.ok) {
+        //     const data = await res.json();
+        //     saveTokens(data.accessToken, data.refreshToken || refreshToken);
+        //     return true;
+        // }
+        return false;
+    } catch (e) {
+        console.error('Ошибка обновления токена', e);
+        return false;
+    }
+}
+
 // ========== ИНИЦИАЛИЗАЦИЯ ==========
 document.addEventListener('DOMContentLoaded', function () {
     console.log('=== API интеграция загружена ===');
 
-    // Регистрация
     const registerForm = document.getElementById('registerForm');
     if (registerForm) {
         registerForm.addEventListener('submit', async function (e) {
@@ -23,7 +113,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Логин
     const loginForm = document.getElementById('loginForm');
     if (loginForm) {
         loginForm.addEventListener('submit', async function (e) {
@@ -32,7 +121,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Восстановление пароля (отправка email)
     const forgotPasswordBtn = document.getElementById('continueBtn');
     if (forgotPasswordBtn) {
         forgotPasswordBtn.addEventListener('click', async function () {
@@ -40,7 +128,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Подтверждение кода
     const codeConfirmBtn = document.getElementById('continueBtn1');
     if (codeConfirmBtn) {
         codeConfirmBtn.addEventListener('click', async function () {
@@ -48,7 +135,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Повторная отправка кода
     const resendCodeBtn = document.getElementById('resendCodeBtn');
     if (resendCodeBtn) {
         resendCodeBtn.addEventListener('click', async function () {
@@ -58,7 +144,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Сброс пароля
     const resetPasswordForm = document.getElementById('resetPasswordForm');
     if (resetPasswordForm) {
         resetPasswordForm.addEventListener('submit', async function (e) {
@@ -67,7 +152,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Выход
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', async function (e) {
@@ -79,20 +163,13 @@ document.addEventListener('DOMContentLoaded', function () {
     checkAuth();
 });
 
-// ========== ВСПОМОГАТЕЛЬНАЯ: получить ID из URL ==========
-
+// ========== ВСПОМОГАТЕЛЬНЫЕ: ID из URL ==========
 function getRegistrationId() {
     const urlParams = new URLSearchParams(window.location.search);
     const urlId = urlParams.get('id');
-
-    console.log('[getRegistrationId] URL search:', window.location.search);
-    console.log('[getRegistrationId] urlId из URL:', urlId);
-
     if (urlId && urlId.trim() !== '') {
-        console.log('[getRegistrationId] Используем ID из URL:', urlId);
         return urlId.trim();
     }
-
     console.error('[getRegistrationId] ID не найден в URL!');
     return null;
 }
@@ -100,24 +177,16 @@ function getRegistrationId() {
 function getResetId() {
     const urlParams = new URLSearchParams(window.location.search);
     const urlId = urlParams.get('id');
-
-    console.log('[getResetId] URL search:', window.location.search);
-    console.log('[getResetId] urlId из URL:', urlId);
-
     if (urlId && urlId.trim() !== '') {
         return urlId.trim();
     }
-
     return null;
 }
 
-// ========== ОСНОВНЫЕ ФУНКЦИИ ==========
-
-// 1. РЕГИСТРАЦИЯ
+// ========== 1. РЕГИСТРАЦИЯ (отправка кода) ==========
 async function handleRegistration(e) {
     try {
         console.log('=== РЕГИСТРАЦИЯ: НАЧАЛО ===');
-
         if (!validateRegistrationForm()) return;
 
         const form = e.target;
@@ -149,17 +218,13 @@ async function handleRegistration(e) {
                 showErrorMessage('Ошибка сервера: не получен ID регистрации');
                 return;
             }
-
-            console.log('registrationId получен:', result.registrationId);
             showSuccessMessage(result.message || 'Код подтверждения отправлен на email');
-
             setTimeout(() => {
                 window.location.href = `/codeEmail?type=registration&id=${result.registrationId}`;
             }, 1500);
         } else {
             showErrorMessage(result.message || 'Не удалось отправить код');
         }
-
     } catch (error) {
         console.error('Ошибка при регистрации:', error);
         showErrorMessage('Произошла ошибка: ' + error.message);
@@ -168,7 +233,7 @@ async function handleRegistration(e) {
     }
 }
 
-// 2. ЛОГИН
+// ========== 2. ЛОГИН ==========
 async function handleLogin(e) {
     try {
         const form = e.target;
@@ -193,13 +258,13 @@ async function handleLogin(e) {
         const response = await fetch(API.LOGIN, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
             body: JSON.stringify(loginData),
         });
 
         const result = await response.json();
 
-        if (result.success) {
+        if (result.success && result.accessToken) {
+            saveTokens(result.accessToken, result.refreshToken);
             showSuccessMessage(result.message || 'Вход выполнен успешно');
             setTimeout(() => {
                 window.location.href = result.redirectUrl || '/';
@@ -207,7 +272,6 @@ async function handleLogin(e) {
         } else {
             showErrorMessage(result.message || 'Неверный email или пароль');
         }
-
     } catch (error) {
         console.error('Ошибка при входе:', error);
         showErrorMessage('Произошла ошибка при входе');
@@ -216,7 +280,7 @@ async function handleLogin(e) {
     }
 }
 
-// 3. ВОССТАНОВЛЕНИЕ ПАРОЛЯ (ОТПРАВКА EMAIL)
+// ========== 3. ЗАБЫЛИ ПАРОЛЬ (отправка email) ==========
 async function handleForgotPassword() {
     try {
         const emailInput = document.getElementById('forgotPasswordEmail') ||
@@ -250,7 +314,6 @@ async function handleForgotPassword() {
         } else {
             showErrorMessage(result.message || 'Пользователь не найден');
         }
-
     } catch (error) {
         console.error('Ошибка при восстановлении пароля:', error);
         showErrorMessage('Произошла ошибка');
@@ -259,11 +322,10 @@ async function handleForgotPassword() {
     }
 }
 
-// 4. ПОДТВЕРЖДЕНИЕ КОДА
+// ========== 4. ПОДТВЕРЖДЕНИЕ КОДА (верификация) ==========
 async function handleCodeConfirmation() {
     try {
         console.log('=== ПОДТВЕРЖДЕНИЕ КОДА ===');
-
         const code = getCodeFromInputs();
         if (!code) return;
 
@@ -271,31 +333,24 @@ async function handleCodeConfirmation() {
 
         const urlParams = new URLSearchParams(window.location.search);
         const type = urlParams.get('type');
-
         console.log('Тип операции:', type);
 
         if (type === 'registration') {
             const registrationId = getRegistrationId();
-
             if (!registrationId) {
                 showErrorMessage('ID регистрации не найден. Начните регистрацию заново.');
                 setTimeout(() => { window.location.href = '/register'; }, 3000);
                 return;
             }
-
-            console.log('Верификация регистрации:', { registrationId, code });
-
             const response = await fetch(API.REGISTER_VERIFY, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify({ registrationId, code }),
             });
-
             const result = await response.json();
             console.log('Ответ сервера:', result);
-
-            if (result.success) {
+            if (result.success && result.accessToken) {
+                saveTokens(result.accessToken, result.refreshToken);
                 showSuccessMessage(result.message || 'Регистрация завершена!');
                 setTimeout(() => {
                     window.location.href = result.redirectUrl || '/profile';
@@ -303,24 +358,19 @@ async function handleCodeConfirmation() {
             } else {
                 showErrorMessage(result.message || 'Неверный код');
             }
-
         } else if (type === 'reset') {
             const resetId = getResetId();
-
             if (!resetId) {
                 showErrorMessage('ID сброса не найден. Начните восстановление заново.');
                 setTimeout(() => { window.location.href = '/forgotPassword'; }, 3000);
                 return;
             }
-
             const response = await fetch(
                 `${API.PASSWORD_VERIFY}?resetId=${encodeURIComponent(resetId)}&code=${encodeURIComponent(code)}`,
-                { method: 'POST', credentials: 'include' }
+                { method: 'POST' }
             );
-
             const result = await response.json();
             console.log('Ответ сервера:', result);
-
             if (result.success) {
                 showSuccessMessage(result.message || 'Код подтверждён!');
                 setTimeout(() => {
@@ -329,11 +379,9 @@ async function handleCodeConfirmation() {
             } else {
                 showErrorMessage(result.message || 'Неверный код');
             }
-
         } else {
             showErrorMessage('Неизвестный тип операции. Начните заново.');
         }
-
     } catch (error) {
         console.error('Ошибка при подтверждении кода:', error);
         showErrorMessage('Произошла ошибка: ' + error.message);
@@ -342,7 +390,7 @@ async function handleCodeConfirmation() {
     }
 }
 
-// 5. СБРОС ПАРОЛЯ (УСТАНОВКА НОВОГО ПАРОЛЯ)
+// ========== 5. СБРОС ПАРОЛЯ (установка нового) ==========
 async function handlePasswordReset() {
     try {
         const passwordInput = document.getElementById('recoveryPassword');
@@ -387,7 +435,8 @@ async function handlePasswordReset() {
 
         const result = await response.json();
 
-        if (result.success) {
+        if (result.success && result.accessToken) {
+            saveTokens(result.accessToken, result.refreshToken);
             showSuccessMessage(result.message || 'Пароль изменён!');
             setTimeout(() => {
                 window.location.href = result.redirectUrl || '/login';
@@ -395,7 +444,6 @@ async function handlePasswordReset() {
         } else {
             showErrorMessage(result.message || 'Не удалось изменить пароль');
         }
-
     } catch (error) {
         console.error('Ошибка при сбросе пароля:', error);
         showErrorMessage('Произошла ошибка: ' + error.message);
@@ -404,7 +452,7 @@ async function handlePasswordReset() {
     }
 }
 
-// 6. ПОВТОРНАЯ ОТПРАВКА КОДА
+// ========== 6. ПОВТОРНАЯ ОТПРАВКА КОДА ==========
 async function handleResendCode() {
     try {
         const urlParams = new URLSearchParams(window.location.search);
@@ -414,41 +462,33 @@ async function handleResendCode() {
 
         if (type === 'registration') {
             const registrationId = getRegistrationId();
-
             if (!registrationId) {
                 showErrorMessage('ID регистрации не найден');
                 return;
             }
-
             const response = await fetch(
                 `${API.REGISTER_RESEND}?registrationId=${encodeURIComponent(registrationId)}`,
-                { method: 'POST', credentials: 'include' }
+                { method: 'POST' }
             );
-
             const result = await response.json();
-
             if (result.success) {
                 showSuccessMessage(result.message || 'Новый код отправлен');
                 resetTimerOnPage();
             } else {
                 showErrorMessage(result.message || 'Не удалось отправить код');
             }
-
         } else if (type === 'reset') {
             const resetId = getResetId();
-
             if (!resetId) {
                 showErrorMessage('ID сброса не найден');
                 return;
             }
-
+            // ВАЖНО: согласно вашему контроллеру, повторная отправка при сбросе использует тот же эндпоинт forgot с параметром resetId
             const response = await fetch(
                 `${API.PASSWORD_FORGOT}?resetId=${encodeURIComponent(resetId)}`,
-                { method: 'POST', credentials: 'include' }
+                { method: 'POST' }
             );
-
             const result = await response.json();
-
             if (result.success) {
                 if (result.resetId) {
                     const newUrl = `/codeEmail?type=reset&id=${result.resetId}`;
@@ -460,7 +500,6 @@ async function handleResendCode() {
                 showErrorMessage(result.message || 'Не удалось отправить код');
             }
         }
-
     } catch (error) {
         console.error('Ошибка при повторной отправке:', error);
         showErrorMessage('Произошла ошибка');
@@ -469,42 +508,46 @@ async function handleResendCode() {
     }
 }
 
-// 7. ВЫХОД
+// ========== 7. ВЫХОД ==========
 async function handleLogout() {
     try {
         showLoading(true);
 
-        const response = await fetch(API.LOGOUT, {
+        const email = getUserEmail() || parseEmailFromToken(getAccessToken());
+        const headers = {};
+        if (email) headers['X-User-Email'] = email;
+
+        // Используем apiRequest, чтобы автоматически добавить Bearer токен
+        const response = await apiRequest(API.LOGOUT, {
             method: 'POST',
-            credentials: 'include',
+            headers: headers,
         });
 
         const result = await response.json();
 
         if (result.success) {
+            clearTokens();
             showSuccessMessage(result.message || 'Выход выполнен');
             setTimeout(() => { window.location.href = '/login'; }, 1000);
         } else {
             showErrorMessage(result.message || 'Ошибка при выходе');
         }
-
     } catch (error) {
         console.error('Ошибка при выходе:', error);
         showErrorMessage('Произошла ошибка');
+        // Всё равно очищаем токены
+        clearTokens();
     } finally {
         showLoading(false);
     }
 }
 
-// ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
-
+// ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (UI и валидация) ==========
 function getCodeFromInputs() {
     const codeInputs = document.querySelectorAll('.code-input');
     let code = '';
     codeInputs.forEach(input => { code += input.value; });
-
     console.log('Собранный код:', code, '| длина:', code.length);
-
     if (code.length !== 6) {
         showErrorMessage('Введите все 6 цифр кода');
         return null;
@@ -513,8 +556,7 @@ function getCodeFromInputs() {
 }
 
 function checkAuth() {
-    const isAuthenticated = document.cookie.split(';').some(c => c.trim().startsWith('jwtToken='));
-
+    const isAuthenticated = !!getAccessToken();
     document.querySelectorAll('.auth-only').forEach(el => {
         el.style.display = isAuthenticated ? 'block' : 'none';
     });
@@ -535,30 +577,25 @@ function validateRegistrationForm() {
         nameInput?.focus();
         return false;
     }
-
     if (!emailInput || !validateEmail(emailInput.value)) {
         showErrorMessage('Введите корректный email');
         emailInput?.focus();
         return false;
     }
-
     if (!passwordInput || passwordInput.value.length < 6) {
         showErrorMessage('Пароль должен содержать не менее 6 символов');
         passwordInput?.focus();
         return false;
     }
-
     if (passwordInput.value !== confirmPasswordInput?.value) {
         showErrorMessage('Пароли не совпадают');
         confirmPasswordInput?.focus();
         return false;
     }
-
     if (!personalDataCheckbox?.checked) {
         showErrorMessage('Необходимо согласие с политикой конфиденциальности');
         return false;
     }
-
     return true;
 }
 
@@ -612,7 +649,6 @@ function showMessage(message, type) {
 
 function showLoading(show) {
     let loader = document.getElementById('global-loader');
-
     if (show) {
         if (loader) return;
         loader = document.createElement('div');
@@ -631,14 +667,12 @@ function showLoading(show) {
             border-radius: 50%; animation: spin 1s linear infinite;
         `;
         loader.appendChild(spinner);
-
         if (!document.getElementById('loader-animation')) {
             const style = document.createElement('style');
             style.id = 'loader-animation';
             style.textContent = `@keyframes spin { to { transform: rotate(360deg); } }`;
             document.head.appendChild(style);
         }
-
         document.body.appendChild(loader);
     } else {
         loader?.parentNode?.removeChild(loader);

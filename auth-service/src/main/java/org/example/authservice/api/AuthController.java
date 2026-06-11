@@ -17,7 +17,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -34,17 +33,23 @@ public class AuthController {
 
     @Operation(summary = "Вход в систему существуещего пользователя")
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@RequestBody @Valid LoginRequest loginRequest,
-                                   HttpServletResponse response) {
-        return ResponseEntity.ok(authService.login(loginRequest, response));
+    public ResponseEntity<LoginResponse> login(
+            @RequestBody @Valid LoginRequest loginRequest) {
+        return ResponseEntity.ok(authService.login(loginRequest));
     }
 
-    @Operation(summary = "Выход с системы")
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(HttpServletResponse response) {
-        return ResponseEntity.ok(authService.logout(response));
-    }
+    public ResponseEntity<?> logout(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestHeader(value = "X-User-Email", required = false) String email) {
 
+        String accessToken = null;
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            accessToken = authHeader.substring(7);
+        }
+
+        return ResponseEntity.ok(authService.logout(email, accessToken));
+    }
     @Operation(summary = "Заполения полей для регистации и отправка кода")
     @PostMapping("/register/send-code")
     public ResponseEntity<RegistrationResponse> sendRegistrationCode(@RequestBody @Valid RegisterCodeRequest request) {

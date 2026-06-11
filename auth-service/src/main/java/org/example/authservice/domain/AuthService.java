@@ -11,6 +11,9 @@ import org.example.authservice.api.dto.response.LoginResponse;
 import org.example.authservice.api.dto.response.PasswordResetResponse;
 import org.example.authservice.api.dto.response.RegistrationResponse;
 import org.example.authservice.api.dto.response.SimpleResponse;
+import org.example.authservice.domain.managers.AuthenticationsManager;
+import org.example.authservice.domain.managers.PasswordResetManager;
+import org.example.authservice.domain.managers.RegistrationManager;
 import org.springframework.stereotype.Service;
 
 
@@ -22,12 +25,12 @@ public class AuthService {
     private final AuthenticationsManager authenticationsManager;
     private final PasswordResetManager passwordResetManager;
 
-    public LoginResponse login(LoginRequest loginRequest, HttpServletResponse response) {
-        return authenticationsManager.login(loginRequest,response);
+    public LoginResponse login(LoginRequest loginRequest) {
+        return authenticationsManager.login(loginRequest);
     }
 
-    public SimpleResponse logout(HttpServletResponse response) {
-        return authenticationsManager.logout(response);
+    public SimpleResponse logout(String email, String accessToken) {
+        return authenticationsManager.logout(email,accessToken);
     }
 
     public RegistrationResponse sendRegistrationCode(RegisterCodeRequest request) {

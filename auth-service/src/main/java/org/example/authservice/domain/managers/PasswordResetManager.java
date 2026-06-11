@@ -1,4 +1,4 @@
-package org.example.authservice.domain;
+package org.example.authservice.domain.managers;
 
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.HttpServletResponse;
@@ -8,9 +8,11 @@ import org.example.authservice.api.dto.cahce.ResetData;
 import org.example.authservice.api.dto.request.ResetPasswordRequest;
 import org.example.authservice.api.dto.response.LoginResponse;
 import org.example.authservice.api.dto.response.PasswordResetResponse;
+import org.example.authservice.api.dto.response.TokenResponse;
 import org.example.authservice.db.PendingResetRepository;
 import org.example.authservice.db.UserEntity;
 import org.example.authservice.db.UserRepository;
+import org.example.authservice.domain.VerificationCodeGenerator;
 import org.example.authservice.domain.exception.InvalidResetRequestException;
 import org.example.authservice.domain.exception.InvalidVerificationCodeException;
 import org.example.authservice.domain.exception.PasswordsDoNotMatchException;
@@ -100,12 +102,14 @@ public class PasswordResetManager {
             isValidResetPassword(data,request);
 
             UserEntity savedUser = updatePassword(data,request);
-            tokenManagementManager.createAuthCookie(savedUser.getEmail(),savedUser.getRole(),response);
+            TokenResponse tokens = tokenManagementManager.createTokenPair(
+                    savedUser.getEmail(), savedUser.getRole(), savedUser.getId());
             updateSpringContext(savedUser);
             pendingResetRepository.delete(request.resetId());
 
             log.info("Пароль успешно изменен для пользователя: {}", data.getEmail());
-            return new LoginResponse(true, "Пароль успешно изменен");
+            return new LoginResponse(true, "Пароль успешно изменён",
+                    tokens.accessToken(), tokens.refreshToken());
         } catch (Exception e) {
             log.error("Ошибка при сбросе пароля: {}", e.getMessage());
             throw new RuntimeException("Ошибка при сбросе пароля");
