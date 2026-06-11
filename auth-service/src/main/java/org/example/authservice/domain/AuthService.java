@@ -25,12 +25,12 @@ public class AuthService {
     private final AuthenticationsManager authenticationsManager;
     private final PasswordResetManager passwordResetManager;
 
-    public LoginResponse login(LoginRequest loginRequest) {
-        return authenticationsManager.login(loginRequest);
+    public LoginResponse login(LoginRequest loginRequest,HttpServletResponse response) {
+        return authenticationsManager.login(loginRequest,response);
     }
 
-    public SimpleResponse logout(String email, String accessToken) {
-        return authenticationsManager.logout(email,accessToken);
+    public SimpleResponse logout(String email, String accessToken, HttpServletResponse response) {
+        return authenticationsManager.logout(email,accessToken,response);
     }
 
     public RegistrationResponse sendRegistrationCode(RegisterCodeRequest request) {

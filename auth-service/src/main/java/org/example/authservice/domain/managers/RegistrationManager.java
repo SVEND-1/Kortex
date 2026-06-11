@@ -95,7 +95,7 @@ public class RegistrationManager {
 
             UserEntity savedUser = createUser(data);
             TokenResponse tokens = tokenManagementManager.createTokenPair(
-                    savedUser.getEmail(), savedUser.getRole(), savedUser.getId());
+                    savedUser.getEmail(), savedUser.getRole(), savedUser.getId(),response);
             addToSpringSecurityContext(savedUser.getEmail());
             pendingRegistrationRepository.delete(request.registrationId());
 

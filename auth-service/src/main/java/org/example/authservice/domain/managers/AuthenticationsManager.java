@@ -1,6 +1,7 @@
 package org.example.authservice.domain.managers;
 
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.authservice.api.dto.request.LoginRequest;
@@ -34,7 +35,7 @@ public class AuthenticationsManager {
     private final TokenManagementManager tokenManagementManager;
     private final AuthenticationManager authenticationManager;
 
-    public LoginResponse login(LoginRequest loginRequest) {
+    public LoginResponse login(LoginRequest loginRequest, HttpServletResponse response) {
         try {
             log.info("Попытка входа для email={}, date={}", loginRequest.email(), LocalDateTime.now());
 
@@ -47,7 +48,7 @@ public class AuthenticationsManager {
             UserEntity user = userRepository.findByEmailEqualsIgnoreCase(loginRequest.email())
                     .orElseThrow(() -> new EntityNotFoundException("Пользователь не найден"));
             TokenResponse tokens = tokenManagementManager.createTokenPair(
-                    user.getEmail(), user.getRole(), user.getId());
+                    user.getEmail(), user.getRole(), user.getId(),response);
             addToSpringSecurityContext(user);
             sendMessageToKafka(user.getEmail(), user.getName());
 
@@ -59,9 +60,9 @@ public class AuthenticationsManager {
         }
     }
 
-    public SimpleResponse logout(String email, String accessToken) {
+    public SimpleResponse logout(String email, String accessToken, HttpServletResponse response) {
         try {
-            tokenManagementManager.revokeTokens(email, accessToken);
+            tokenManagementManager.revokeTokens(email, accessToken,response);
             SecurityContextHolder.clearContext();
             return new SimpleResponse(true, "Успешный выход");
         } catch (Exception e) {

@@ -34,21 +34,24 @@ public class AuthController {
     @Operation(summary = "Вход в систему существуещего пользователя")
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(
-            @RequestBody @Valid LoginRequest loginRequest) {
-        return ResponseEntity.ok(authService.login(loginRequest));
+            @RequestBody @Valid LoginRequest loginRequest,
+            HttpServletResponse response
+    ) {
+        return ResponseEntity.ok(authService.login(loginRequest, response));
     }
 
     @PostMapping("/logout")
     public ResponseEntity<?> logout(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
-            @RequestHeader(value = "X-User-Email", required = false) String email) {
+            @RequestHeader(value = "X-User-Email", required = false) String email,
+            HttpServletResponse response) {
 
         String accessToken = null;
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             accessToken = authHeader.substring(7);
         }
 
-        return ResponseEntity.ok(authService.logout(email, accessToken));
+        return ResponseEntity.ok(authService.logout(email, accessToken, response));
     }
     @Operation(summary = "Заполения полей для регистации и отправка кода")
     @PostMapping("/register/send-code")

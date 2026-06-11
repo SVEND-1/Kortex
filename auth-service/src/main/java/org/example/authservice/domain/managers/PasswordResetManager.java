@@ -103,7 +103,7 @@ public class PasswordResetManager {
 
             UserEntity savedUser = updatePassword(data,request);
             TokenResponse tokens = tokenManagementManager.createTokenPair(
-                    savedUser.getEmail(), savedUser.getRole(), savedUser.getId());
+                    savedUser.getEmail(), savedUser.getRole(), savedUser.getId(),response);
             updateSpringContext(savedUser);
             pendingResetRepository.delete(request.resetId());
 

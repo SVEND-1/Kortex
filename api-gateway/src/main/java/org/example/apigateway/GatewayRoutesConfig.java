@@ -13,8 +13,6 @@ public class GatewayRoutesConfig {
         return builder.routes()
 
                 // ── Auth Service ──────────────────────────────────────────
-                // Один маршрут на все /api/auth/** — JwtFilter сам разберёт
-                // что публично, а что требует JWT
                 .route("auth-service", r -> r
                         .path("/api/auth/**")
                         .filters(f -> f.stripPrefix(0))
@@ -23,6 +21,11 @@ public class GatewayRoutesConfig {
                 // ── Product Service ───────────────────────────────────────
                 .route("product-service", r -> r
                         .path("/api/products/**")
+                        .filters(f -> f.stripPrefix(0))
+                        .uri("http://localhost:8082"))
+
+                .route("product-service", r -> r
+                        .path("/api/sellers/**")
                         .filters(f -> f.stripPrefix(0))
                         .uri("http://localhost:8082"))
 

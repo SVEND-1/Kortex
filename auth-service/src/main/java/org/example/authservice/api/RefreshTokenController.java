@@ -1,5 +1,6 @@
 package org.example.authservice.api;
 
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.authservice.api.dto.response.TokenResponse;
@@ -26,7 +27,8 @@ public class RefreshTokenController {
     //TODO ВОЗМОЖНО НЕ НАДО НАПИСАЛА НЕЙРОНКА, ЕЩЁ НУЖНА РАБОТА СО СТОРОНЫ ФРОНТА
     @PostMapping("/refresh")
     public ResponseEntity<?> refresh(
-            @RequestHeader("X-Refresh-Token") String refreshToken) {
+            @RequestHeader("X-Refresh-Token") String refreshToken,
+            HttpServletResponse response) {
 
         String email = tokenRedisService.getEmailByRefreshToken(refreshToken);
         if (email == null) {
@@ -52,7 +54,7 @@ public class RefreshTokenController {
         tokenRedisService.deleteRefreshToken(refreshToken, email);
 
         TokenResponse tokens = tokenManagementManager.createTokenPair(
-                email, user.getRole(), user.getId());
+                email, user.getRole(), user.getId(),response);
 
         log.info("Токены обновлены для: {}", email);
         return ResponseEntity.ok(tokens);
