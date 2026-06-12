@@ -131,7 +131,7 @@ public class ProductService {
 
 
     public ProductEntity create(ProductEntity productToCreate) {
-        try {
+        try {//TODO РЕАЛИЗОВАТЬ ПОЛГОСТЬЮ
             return productRepository.save(productToCreate);
         }catch (Exception e){
             log.error("Ошибка сохранение продукта");
@@ -167,7 +167,7 @@ public class ProductService {
         }
     }
 
-    public void deleted(Long id) {
+    public void deleted(Long id) {//TODO УБРАТЬ ИЗ СЕЛЛЕР
         try {//TODO УДАЛИТЬ ВСЕ КАРТИНКИ
             if (!productRepository.existsById(id)) {
                 log.info("Продукт не найден id={}",id);
