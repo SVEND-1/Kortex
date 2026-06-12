@@ -3,23 +3,22 @@ package org.example.productservice.domain;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.productservice.api.dto.request.ProductCreateRequest;
+import org.example.productservice.api.dto.request.ProductUpdateRequest;
 import org.example.productservice.api.dto.response.ProductPageResponse;
 import org.example.productservice.api.dto.response.ProductResponse;
 import org.example.productservice.api.dto.request.ProductSearchFilter;
-import org.example.productservice.db.Category;
 import org.example.productservice.db.ProductCacheRepository;
 import org.example.productservice.db.ProductEntity;
 import org.example.productservice.db.ProductRepository;
 import org.example.productservice.domain.mapper.ProductMapper;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 
 
@@ -30,65 +29,27 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final ProductMapper productMapper;
     private final ProductCacheRepository productCacheRepository;
+    private final ProductImageService productImageService;
+    private final ProductFindManager productFindManager;
 
     @Async("asyncExecutor")
     public CompletableFuture<ProductPageResponse> findProductsFilter(ProductSearchFilter filter) {
-        try {
-            Category category = filter.category() != null ? Category.valueOf(filter.category()) : null;
-            int pageSize = filter.size() != null ? filter.size() : 10;
-            int pageNumber = filter.page() != null ? filter.page() : 0;
-            String query = filter.query() != null ? filter.query() : "";
-
-            Pageable pageable = Pageable.ofSize(pageSize).withPage(pageNumber);
-
-            long startTime = System.currentTimeMillis();
-            Page<ProductEntity> productsPage = productRepository.findProductsFilter(category, query, pageable);
-            long endTime = System.currentTimeMillis();
-
-            log.info("Поиск завершен за {} мс, найдено: {} товаров",
-                    (endTime - startTime), productsPage.getTotalElements());
-
-            ProductPageResponse response = productMapper.convertPageEntityToDTO(productsPage);
-            return CompletableFuture.completedFuture(response);
-        } catch (Exception ex) {
-            log.error("Ошибка при загрузке продуктов: {}", ex.getMessage(), ex);
-            throw new RuntimeException("Ошибка при загрузке продуктов",ex);
-        }
+        return CompletableFuture.completedFuture(productFindManager.findProductsFilter(filter));
     }
 
     public ProductResponse getProductDto(Long id) {
-        return getById(id);
+        return productFindManager.getProductDto(id);
     }
 
+    public List<ProductResponse> getProductsBySeller(Long sellerId) {
+        return productFindManager.getProductsBySeller(sellerId);
+    }
 
     public ProductEntity getByIdEntity(Long id) {
         return productRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("Продукт не найден"));
     }
 
-    public ProductResponse getById(Long id) {
-        try {
-            ProductResponse product = productCacheRepository.getProduct(id);
-            if (product != null) {
-                log.debug("Продукт найден в кэше key={}", id);
-                return product;
-            }
-
-            product = getProductDto(id);
-            productCacheRepository.save(product);
-
-            return product;
-        }
-        catch (Exception e){
-            log.error("REDIS ex={}",e.getMessage());
-            throw new RuntimeException(e);
-        }
-    }
-
-    public List<ProductResponse> getProductsBySeller(Long sellerId) {
-        return productMapper.convertEntityListToDTO(productRepository.findBySellerId(sellerId));
-    }
-
-    //ПОСЛЕ КОММИТА АСИНХРОНО ВЫПОЛНЯТЬ
+    //TODO ПОСЛЕ КОММИТА АСИНХРОНО ВЫПОЛНЯТЬ
     //   TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
     //            @Override
     //            public void afterCommit() {
@@ -98,7 +59,7 @@ public class ProductService {
     //        });
 
     @Transactional(isolation = Isolation.SERIALIZABLE)
-    public void productSubtractQuantity(Long productId, int quantity) {
+    public void productSubtractQuantity(Long productId, int quantity) {//TODO тут в кафка при создание заказа
         try {
             ProductEntity product = getByIdEntity(productId);
             product.setCount(product.getCount() - quantity);
@@ -130,35 +91,35 @@ public class ProductService {
     }
 
 
-    public ProductEntity create(ProductEntity productToCreate) {
-        try {//TODO РЕАЛИЗОВАТЬ ПОЛГОСТЬЮ
-            return productRepository.save(productToCreate);
+    @Transactional
+    public ProductEntity create(ProductCreateRequest request,Long sellerId) {
+        try {
+            List<String> imagePaths =  productImageService.saveImages(request.imageFiles());
+            ProductEntity product = ProductEntity.builder()
+                    .name(request.name())
+                    .price(request.price())
+                    .count(request.count())
+                    .description(request.description())
+                    .category(request.category())
+                    .sellerId(sellerId)
+                    .images(imagePaths)
+                    .build();
+            return productRepository.save(product);
         }catch (Exception e){
             log.error("Ошибка сохранение продукта");
             throw new RuntimeException(e);
         }
     }
 
-    @Transactional(isolation = Isolation.SERIALIZABLE)
-    public ProductEntity update(Long id, ProductEntity productToUpdate) {//TODO ВРОДЕ ПОВТОРЯЕТСЯ С SELLER
+    @Transactional
+    public ProductEntity update(Long id, ProductUpdateRequest request) {
         try {
             ProductEntity existingProduct = productRepository.findById(id)
                     .orElseThrow(() -> new EntityNotFoundException("Продукт не найден"));
 
-            existingProduct.setName(productToUpdate.getName());
-            existingProduct.setPrice(productToUpdate.getPrice());
-            existingProduct.setCount(productToUpdate.getCount());
-            existingProduct.setDescription(productToUpdate.getDescription());
-            existingProduct.setCategory(productToUpdate.getCategory());
-
-            if (productToUpdate.getImage() != null && !productToUpdate.getImage().isEmpty()) {
-                existingProduct.setImage(productToUpdate.getImage());
-            }
-
+            productMapper.updateEntity(existingProduct,request);
             ProductEntity productUpdated = productRepository.save(existingProduct);
-
-            productCacheRepository.remove(id);//TODO по моему логично сразу и добавить будет в кэш
-
+            productCacheRepository.remove(id);
             return productUpdated;
         }
         catch (Exception e){
@@ -167,14 +128,29 @@ public class ProductService {
         }
     }
 
-    public void deleted(Long id) {//TODO УБРАТЬ ИЗ СЕЛЛЕР
-        try {//TODO УДАЛИТЬ ВСЕ КАРТИНКИ
-            if (!productRepository.existsById(id)) {
-                log.info("Продукт не найден id={}",id);
-                throw new NoSuchElementException("Продукт не найден");
-            }
-            productRepository.deleteById(id);
+    @Transactional
+    public ProductEntity updateImages(Long productId, List<MultipartFile> imageFiles) {
+        try {
+            ProductEntity product = getByIdEntity(productId);
 
+            List<String> imagePathsUpdated = productImageService.updateImages(product.getImages(),imageFiles);
+            product.setImages(imagePathsUpdated);
+
+            productRepository.save(product);
+            productCacheRepository.remove(productId);
+            return product;
+        }catch (Exception e){
+            log.error("Не получилось обновить фотографии у продукта, ex={}", e.getMessage());
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Transactional
+    public void deleted(Long id) {
+        try {
+            ProductEntity product = getByIdEntity(id);
+            productRepository.deleteById(id);
+            productImageService.deleteImages(product.getImages());
             productCacheRepository.remove(id);
         }
         catch (Exception e){

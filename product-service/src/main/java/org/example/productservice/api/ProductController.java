@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.example.productservice.api.dto.request.ProductSearchFilter;
 import org.example.productservice.api.dto.response.ProductPageResponse;
+import org.example.productservice.api.dto.response.ProductResponse;
 import org.example.productservice.domain.ProductService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,7 +15,7 @@ import java.util.concurrent.CompletableFuture;
 
 @RequiredArgsConstructor
 @RestController
-@RequestMapping("/api/products")//TODO В API GATEWAY ДОБАВИТЬ БЕЗ РЕГИСТРАЦИИ ЧТОБЫ РАБОТАЛО
+@RequestMapping("/api/products")
 @Tag(name = "Product",description = "Работа с товарами")
 public class ProductController {
     private final ProductService productService;
@@ -29,7 +30,7 @@ public class ProductController {
 
     @Operation(summary = "Получение деталей товара")
     @GetMapping("/{id}")
-    public ResponseEntity<?> productDetailPage(@PathVariable String id)  {
+    public ResponseEntity<ProductResponse> productDetailPage(@PathVariable String id)  {
         return ResponseEntity.ok(productService.getProductDto(Long.parseLong(id)));
     }
 }

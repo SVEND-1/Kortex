@@ -7,57 +7,261 @@
     <link rel="stylesheet" href="css/authStyle.css">
     <link rel="stylesheet" href="css/sellerStyle.css">
     <title>Панель продавца</title>
+    <style>
+        /* Дополнительные стили для нескольких изображений */
+        .image-previews, .current-images-grid {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .image-preview, .current-image-item {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .edit-sections {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+        .data-section, .images-section {
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 20px;
+            background: #fafafa;
+        }
+        .data-section h4, .images-section h4 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 1.2rem;
+        }
+        .modal-actions {
+            margin-top: 20px;
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+        .delete-btn {
+            background: linear-gradient(135deg, #f44336, #d32f2f) !important;
+        }
+        .reset-btn {
+            background: #6c757d !important;
+        }
+        .file-input-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .file-input-label {
+            background: #007bff;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+        }
+        .file-input-label:hover {
+            background: #0056b3;
+        }
+        .file-input {
+            display: none;
+        }
+        .file-name {
+            font-size: 0.9rem;
+            color: #555;
+        }
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .product-card {
+            cursor: pointer;
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+            background: white;
+        }
+        .product-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 6px 14px rgba(0,0,0,0.1);
+        }
+        .product-image img {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+        }
+        .product-info {
+            padding: 12px;
+        }
+        .product-name {
+            font-size: 1.1rem;
+            margin: 0 0 8px;
+        }
+        .product-price {
+            font-weight: bold;
+            color: #2c7da0;
+            font-size: 1.2rem;
+        }
+        .product-stock.low {
+            color: #e67e22;
+            font-weight: bold;
+        }
+        .product-category {
+            color: #666;
+            font-size: 0.85rem;
+        }
+        .product-description {
+            font-size: 0.9rem;
+            color: #444;
+            margin-top: 8px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal.active {
+            display: flex;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            max-width: 900px;
+            width: 90%;
+            max-height: 90%;
+            overflow-y: auto;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+        }
+        .modal-body {
+            padding: 20px;
+        }
+        .form-row {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        .form-group {
+            flex: 1;
+            min-width: 180px;
+        }
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+        .loginBtn {
+            background: linear-gradient(135deg, #4a90e2, #357abd);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 30px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .loginBtn:hover {
+            opacity: 0.9;
+        }
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            z-index: 2000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .loading-text {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+    </style>
 </head>
 <body>
-<!--Шапка страницы-->
-
-    <header class="header">
-        <div class="container">
-            <div class="header-content">
-                <a href="/" class="logo">Kortex marketplace</a>
-
-                <form class="search-form" action="/search" method="GET">
-                    <div class="search-container">
-                        <input id="search-input" type="text" class="search-input" placeholder="Поиск товаров...">
-                        <button type="submit" class="search-button">
-                            <img id="findImg" src="images/findImg.png" alt="Поиск">
-                        </button>
-                    </div>
-                </form>
-
-                <nav class="nav">
-                    <a href="/cart" class="nav-link">
-                        <img src="images/cart-img.png" alt="Корзина" class="nav-icon">
-                        Корзина
-                    </a>
-
-                    <a href="/profile" class="nav-link">
-                        <img src="images/profile-img.png" alt="Профиль" class="nav-icon profile-icon">
-                        <span class="profile-text">Профиль</span>
-                    </a>
-
-                    <a href="/login" class="nav-link">
-                        <img src="images/join-img.png" alt="Войти" class="nav-icon">
-                        Войти
-                    </a>
-                </nav>
-            </div>
+<header class="header">
+    <div class="container">
+        <div class="header-content">
+            <a href="/" class="logo">Kortex marketplace</a>
+            <form class="search-form" action="/search" method="GET">
+                <div class="search-container">
+                    <input id="search-input" type="text" class="search-input" placeholder="Поиск товаров...">
+                    <button type="submit" class="search-button">
+                        <img id="findImg" src="images/findImg.png" alt="Поиск">
+                    </button>
+                </div>
+            </form>
+            <nav class="nav">
+                <a href="/cart" class="nav-link">
+                    <img src="images/cart-img.png" alt="Корзина" class="nav-icon">
+                    Корзина
+                </a>
+                <a href="/profile" class="nav-link">
+                    <img src="images/profile-img.png" alt="Профиль" class="nav-icon profile-icon">
+                    <span class="profile-text">Профиль</span>
+                </a>
+                <a href="/login" class="nav-link">
+                    <img src="images/join-img.png" alt="Войти" class="nav-icon">
+                    Войти
+                </a>
+            </nav>
         </div>
-    </header>
+    </div>
+</header>
 
-
-<!-- Панель продавца с табами -->
 <main class="auth-container">
     <div class="auth-form">
         <h2 class="registerH2">Панель продавца</h2>
 
-        <!-- Табы -->
         <div class="tabs">
             <button class="tab-button active" data-tab="add">Добавить товар</button>
             <button class="tab-button" data-tab="edit">Редактировать товары</button>
         </div>
 
-        <!-- Контент таба "Добавить товар" -->
+        <!-- Добавление товара -->
         <div id="add-tab" class="tab-content active">
             <form class="loginForm" id="add-product-form">
                 <label>Название товара</label>
@@ -85,14 +289,13 @@
                 <label>Описание</label>
                 <textarea id="add-description" placeholder="Описание товара..." rows="4" required></textarea>
 
-                <label>Изображение товара</label>
+                <label>Изображения товара (можно несколько)</label>
                 <div class="file-input-container">
-                    <input type="file" id="add-imageFile" accept="image/*" class="file-input">
-                    <label for="add-imageFile" class="file-input-label">
-                        Выберите файл
-                    </label>
-                    <span class="file-name" id="add-fileName">Файл не выбран</span>
+                    <input type="file" id="add-imageFiles" accept="image/*" multiple class="file-input">
+                    <label for="add-imageFiles" class="file-input-label">Выберите файлы</label>
+                    <span class="file-name" id="add-fileNames">Файлы не выбраны</span>
                 </div>
+                <div class="image-previews" id="add-previews"></div>
 
                 <div class="form-buttons">
                     <button type="button" id="add-submit-btn" class="loginBtn">Добавить товар</button>
@@ -101,107 +304,98 @@
             </form>
         </div>
 
-        <!-- Контент таба "Редактировать товары" -->
-        <div id="edit-tab" class="tab-content active">
+        <!-- Редактирование товаров -->
+        <div id="edit-tab" class="tab-content">
             <div class="products-grid-container">
                 <div id="products-container" class="products-grid">
-                    <!-- Товары будут загружаться здесь -->
                     <p class="loading-text">Загрузка товаров...</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Модальное окно редактирования товара -->
-        <div id="edit-modal" class="modal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>Редактировать товар</h3>
-                    <button class="modal-close">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <form class="loginForm" id="edit-product-form">
-                        <input type="hidden" id="edit-id">
-
-                        <div class="edit-form-grid">
-                            <!-- Левая колонка: изображение -->
-                            <div class="edit-image-column">
-                                <div class="image-preview-container">
-                                    <div class="current-image-wrapper">
-                                        <img id="current-image" src="" alt="Текущее изображение">
-                                        <div class="image-overlay">
-                                            <span>Текущее изображение</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="image-upload-section">
-                                    <label>Новое изображение</label>
-                                    <div class="file-input-container">
-                                        <input type="file" id="edit-imageFile" accept="image/*" class="file-input">
-                                        <label for="edit-imageFile" class="file-input-label">
-                                            Выберите файл
-                                        </label>
-                                        <span class="file-name" id="edit-fileName">Файл не выбран</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Правая колонка: форма -->
-                            <div class="edit-form-column">
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label>Название товара *</label>
-                                        <input type="text" id="edit-name" placeholder="Введите название товара" required>
-                                    </div>
-
-                                    <div class="form-group">
-                                        <label>Цена (₽) *</label>
-                                        <input type="number" id="edit-price" placeholder="0" min="0" step="0.01" required>
-                                    </div>
-                                </div>
-
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label>Количество *</label>
-                                        <input type="number" id="edit-count" placeholder="0" min="0" required>
-                                    </div>
-
-                                    <div class="form-group">
-                                        <label>Категория *</label>
-                                        <select id="edit-category" required>
-                                            <option value="">Выберите категорию</option>
-                                            <option value="ELECTRONICS">Электроника</option>
-                                            <option value="CLOTHING">Одежда</option>
-                                            <option value="BOOKS">Книги</option>
-                                            <option value="FOOD">Еда</option>
-                                            <option value="SPORTS">Спорт товары</option>
-                                            <option value="HOME">Товары для дома</option>
-                                            <option value="BEAUTY">Красота</option>
-                                            <option value="OTHER">Другое</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
-                                    <label>Описание</label>
-                                    <textarea id="edit-description" placeholder="Описание товара..." rows="4"></textarea>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="modal-actions">
-                            <button type="button" id="update-submit-btn" class="loginBtn">Сохранить изменения</button>
-                            <button type="button" id="cancel-edit" class="loginBtn reset-btn">Отмена</button>
-                            <button type="button" id="delete-product" class="loginBtn delete-btn">Удалить товар</button>
-                        </div>
-                    </form>
                 </div>
             </div>
         </div>
     </div>
 </main>
 
+<!-- Модальное окно редактирования -->
+<div id="edit-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Редактировать товар</h3>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="edit-product-form">
+                <input type="hidden" id="edit-id">
+
+                <div class="edit-sections">
+                    <!-- Блок основных данных -->
+                    <div class="data-section">
+                        <h4>Основные данные</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Название товара *</label>
+                                <input type="text" id="edit-name" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Цена (₽) *</label>
+                                <input type="number" id="edit-price" min="0" step="0.01" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Количество *</label>
+                                <input type="number" id="edit-count" min="0" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Категория *</label>
+                                <select id="edit-category" required>
+                                    <option value="">Выберите категорию</option>
+                                    <option value="ELECTRONICS">Электроника</option>
+                                    <option value="CLOTHING">Одежда</option>
+                                    <option value="BOOKS">Книги</option>
+                                    <option value="FOOD">Еда</option>
+                                    <option value="SPORTS">Спорт товары</option>
+                                    <option value="HOME">Товары для дома</option>
+                                    <option value="BEAUTY">Красота</option>
+                                    <option value="OTHER">Другое</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Описание</label>
+                            <textarea id="edit-description" rows="4"></textarea>
+                        </div>
+                        <div class="modal-actions data-actions">
+                            <button type="button" id="update-data-btn" class="loginBtn">Сохранить данные</button>
+                        </div>
+                    </div>
+
+                    <!-- Блок изображений -->
+                    <div class="images-section">
+                        <h4>Изображения товара</h4>
+                        <div id="current-images-container" class="current-images-grid"></div>
+                        <div class="new-images-upload">
+                            <label>Заменить изображения (можно выбрать несколько)</label>
+                            <div class="file-input-container">
+                                <input type="file" id="edit-imageFiles" accept="image/*" multiple class="file-input">
+                                <label for="edit-imageFiles" class="file-input-label">Выбрать файлы</label>
+                                <span class="file-name" id="edit-fileNames">Файлы не выбраны</span>
+                            </div>
+                        </div>
+                        <div class="modal-actions images-actions">
+                            <button type="button" id="update-images-btn" class="loginBtn">Обновить изображения</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-actions global-actions">
+                    <button type="button" id="cancel-edit" class="loginBtn reset-btn">Отмена</button>
+                    <button type="button" id="delete-product" class="loginBtn delete-btn">Удалить товар</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script src="js/sellerScript.js"></script>
-<script src="js/productManager.js"></script>
 </body>
 </html>

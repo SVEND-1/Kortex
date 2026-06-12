@@ -26,4 +26,5 @@ public interface ProductRepository extends JpaRepository<ProductEntity, Long> {
                                            @Param("query") String query,
                                            Pageable pageable);
 
+    boolean existsByIdAndSellerId(Long id, Long sellerId);
 }

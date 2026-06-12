@@ -8,8 +8,9 @@ import org.example.productservice.db.Category;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.util.List;
 
-public record ProductRequest(
+public record ProductCreateRequest(
         @NotNull
         @Size(min = 1, max = 128)
         String name,
@@ -30,6 +31,6 @@ public record ProductRequest(
         Category category,
 
         @NotNull
-        MultipartFile imageFile
+        List<MultipartFile> imageFiles
 ) {
 }

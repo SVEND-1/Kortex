@@ -8,14 +8,13 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <title>Kortex</title>
     <style>
-        /* Дополнительные стили для пагинации */
+        /* Дополнительные стили для пагинации, загрузки, уведомлений */
         .pagination-container {
             margin-top: 40px;
             padding-top: 20px;
             border-top: 1px solid #e2e8f0;
             width: 100%;
         }
-
         .pagination {
             display: flex;
             justify-content: center;
@@ -23,7 +22,6 @@
             gap: 15px;
             margin: 0 auto;
         }
-
         .pagination-btn {
             padding: 12px 24px;
             background: white;
@@ -36,7 +34,6 @@
             transition: all 0.3s ease;
             min-width: 140px;
         }
-
         .pagination-btn:hover:not(:disabled) {
             background: #667eea;
             color: white;
@@ -44,19 +41,16 @@
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
         }
-
         .pagination-btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
             background: #f8f9fa;
         }
-
         .pagination-numbers {
             display: flex;
             gap: 8px;
             align-items: center;
         }
-
         .pagination-number {
             width: 40px;
             height: 40px;
@@ -72,17 +66,14 @@
             font-weight: 600;
             transition: all 0.3s ease;
         }
-
         .pagination-number:hover {
             background: #e2e8f0;
         }
-
         .pagination-number.active {
             background: #667eea;
             color: white;
             border-color: #667eea;
         }
-
         .pagination-ellipsis {
             display: flex;
             align-items: center;
@@ -91,7 +82,6 @@
             height: 40px;
             color: #999;
         }
-
         .page-info {
             text-align: center;
             margin-top: 20px;
@@ -100,6 +90,59 @@
             padding: 10px;
             background: #f8f9fa;
             border-radius: 8px;
+        }
+        .loading-container {
+            text-align: center;
+            padding: 60px;
+            background: #f8f9fa;
+            border-radius: 12px;
+        }
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #e2e8f0;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .empty-catalog, .error-message {
+            text-align: center;
+            padding: 60px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .empty-catalog-icon, .error-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        .btn-reset-filters, .btn-retry {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            transform: translateX(100%);
+            opacity: 0;
+            transition: transform 0.3s ease, opacity 0.3s ease;
         }
     </style>
 </head>
@@ -111,7 +154,8 @@
         <div class="header-content">
             <a href="/" class="logo">Kortex</a>
 
-            <form class="search-form" action="/search" method="GET">
+            <!-- Убираем action и method, чтобы форма не отправлялась сама -->
+            <form class="search-form" id="searchForm">
                 <div class="search-container">
                     <input id="search-input" type="text" class="search-input" placeholder="Поиск товаров...">
                     <button type="submit" class="search-button">
@@ -125,12 +169,10 @@
                     <img src="images/cart-img.png" alt="Корзина" class="nav-icon">
                     Корзина
                 </a>
-
                 <a href="/profile" class="nav-link">
                     <img src="images/profile-img.png" alt="Профиль" class="nav-icon profile-icon">
                     <span class="profile-text">Профиль</span>
                 </a>
-
                 <a href="/login" class="nav-link">
                     <img src="images/join-img.png" alt="Войти" class="nav-icon">
                     Войти
@@ -140,10 +182,8 @@
     </div>
 </header>
 
-<!-- Основной контент главной страницы -->
 <main class="main-content">
     <div class="container">
-        <!-- Каталог товаров -->
         <section class="catalog">
             <div class="catalog-header">
                 <h2 class="catalog-title">Каталог товаров</h2>
@@ -168,27 +208,14 @@
                 </div>
             </div>
 
-            <div id="productsGrid" class="products-grid">
-                <!-- Товары будут загружены через JavaScript -->
-            </div>
+            <div id="productsGrid" class="products-grid"></div>
 
-            <!-- Пагинация -->
             <div class="pagination-container">
                 <div id="pagination" class="pagination">
-                    <button id="prevPage" class="pagination-btn" disabled>
-                        ← Назад
-                    </button>
-
-                    <div class="pagination-numbers" id="paginationNumbers">
-                        <!-- Номера страниц будут генерироваться динамически -->
-                    </div>
-
-                    <button id="nextPage" class="pagination-btn">
-                        Вперед →
-                    </button>
+                    <button id="prevPage" class="pagination-btn" disabled>← Назад</button>
+                    <div class="pagination-numbers" id="paginationNumbers"></div>
+                    <button id="nextPage" class="pagination-btn">Вперед →</button>
                 </div>
-
-                <!-- Информация о странице -->
                 <div id="pageInfo" class="page-info">
                     Показано товаров: <span id="shownItems">0</span> из <span id="totalItems">0</span>
                 </div>

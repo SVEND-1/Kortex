@@ -47,7 +47,9 @@ public class JwtFilter implements WebFilter {
             "/api/auth/password/verify",
             "/api/auth/password/reset",
             "/api/auth/test",
-            "/api/products/public"
+            "/api/products/public",
+            "/api/products",
+            "/api/products/**"
     );
 
     public JwtFilter(RedisTemplate<String, Object> redisTemplate) {

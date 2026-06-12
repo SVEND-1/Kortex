@@ -1,6 +1,8 @@
 package org.example.productservice.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
+import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
 import org.example.productservice.api.dto.response.ProductResponse;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
@@ -8,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 @EnableCaching
@@ -16,19 +19,28 @@ public class RedisConfig {
 
     @Bean
     public RedisTemplate<String, ProductResponse> redisTemplate(
-            RedisConnectionFactory redisConnectionFactory,
-            ObjectMapper objectMapper
-    ) {
-        RedisTemplate<String, ProductResponse> redisTemplate = new RedisTemplate<>();
-        redisTemplate.setConnectionFactory(redisConnectionFactory);
-        redisTemplate.setKeySerializer(new StringRedisSerializer());
+            RedisConnectionFactory factory,
+            ObjectMapper objectMapper) {
 
-        GenericJackson2JsonRedisSerializer serializer =
-                new GenericJackson2JsonRedisSerializer(objectMapper);
-        redisTemplate.setValueSerializer(serializer);
-        redisTemplate.setHashValueSerializer(serializer);
+        RedisTemplate<String, ProductResponse> template = new RedisTemplate<>();
+        template.setConnectionFactory(factory);
+        template.setKeySerializer(new StringRedisSerializer());
+        template.setHashKeySerializer(new StringRedisSerializer());
 
-        redisTemplate.afterPropertiesSet();
-        return redisTemplate;
+        // Создаём копию ObjectMapper и включаем default typing
+        ObjectMapper mapperWithTyping = objectMapper.copy();
+        PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
+                .allowIfSubType(Object.class)
+                .build();
+        mapperWithTyping.activateDefaultTyping(ptv, ObjectMapper.DefaultTyping.NON_FINAL);
+
+        Jackson2JsonRedisSerializer<ProductResponse> serializer =
+                new Jackson2JsonRedisSerializer<>(ProductResponse.class);
+        serializer.setObjectMapper(mapperWithTyping);
+
+        template.setValueSerializer(serializer);
+        template.setHashValueSerializer(serializer);
+        template.afterPropertiesSet();
+        return template;
     }
 }

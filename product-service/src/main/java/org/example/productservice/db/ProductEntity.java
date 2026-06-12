@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
 @NoArgsConstructor
 @AllArgsConstructor
@@ -30,14 +32,11 @@ public class ProductEntity {
     @Column(name = "description", nullable = false,length = 3000)
     private String description;
 
-//    @ElementCollection
-//    @CollectionTable(name = "product_images", schema = "product",
-//            joinColumns = @JoinColumn(name = "product_id"))
-//    @Column(name = "image_url", nullable = false)
-//    private List<String> images = new ArrayList<>();
-
-    @Column(name = "image")
-    private String image;
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "product_images", schema = "product",
+            joinColumns = @JoinColumn(name = "product_id"))
+    @Column(name = "image_url", nullable = false)
+    private List<String> images = new ArrayList<>();
 
     @Enumerated(EnumType.STRING)
     @Column(name = "category", nullable = false)
