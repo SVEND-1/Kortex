@@ -1,42 +1,19 @@
-// productManager.js - для совместимости с бекендом
-
 class ProductManager {
-    constructor() {
-        this.storageKey = 'productsDatabase';
-        this.loadProducts();
-    }
-
-    // Загрузка из localStorage (для совместимости)
-    loadProducts() {
-        const saved = localStorage.getItem(this.storageKey);
-        if (saved) {
-            this.products = JSON.parse(saved);
-        } else {
-            this.products = {};
-        }
-    }
-
-    // Сохранение в localStorage
-    saveProducts() {
-        localStorage.setItem(this.storageKey, JSON.stringify(this.products));
-    }
-
-    // Получить товар по ID (в первую очередь с сервера)
+    // Получить товар по ID
     async getProductById(id) {
         try {
             const response = await fetch(`/api/products/${id}`);
             if (response.ok) {
                 return await response.json();
             }
+            throw new Error(`Ошибка HTTP: ${response.status}`);
         } catch (error) {
             console.error('Ошибка при запросе к серверу:', error);
+            return null;
         }
-
-        // Если сервер не отвечает, используем локальные данные
-        return this.products[id];
     }
 
-    // Получить все товары (в первую очередь с сервера)
+    // Получить все товары
     async getAllProducts() {
         try {
             const response = await fetch('/api/products');
@@ -44,24 +21,18 @@ class ProductManager {
                 const data = await response.json();
                 return data.content || data;
             }
+            throw new Error(`Ошибка HTTP: ${response.status}`);
         } catch (error) {
             console.error('Ошибка при запросе к серверу:', error);
+            return [];
         }
-
-        return Object.values(this.products);
     }
 
     // Получить товары продавца
     async getSellerProducts() {
         try {
-            const token = localStorage.getItem('authToken');
-            if (!token) {
-                throw new Error('Пользователь не авторизован');
-            }
-
             const response = await fetch('/api/sellers/products', {
                 headers: {
-                    'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 }
             });
@@ -77,14 +48,9 @@ class ProductManager {
         }
     }
 
-    // Добавить товар (через API продавца)
+    // Добавить товар
     async addProduct(productData, imageFile) {
         try {
-            const token = localStorage.getItem('authToken');
-            if (!token) {
-                throw new Error('Пользователь не авторизован');
-            }
-
             const formData = new FormData();
             formData.append('name', productData.name);
             formData.append('price', productData.price);
@@ -99,9 +65,6 @@ class ProductManager {
 
             const response = await fetch('/api/sellers/products', {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                },
                 body: formData
             });
 
@@ -119,11 +82,6 @@ class ProductManager {
     // Обновить товар
     async updateProduct(productId, productData, imageFile = null) {
         try {
-            const token = localStorage.getItem('authToken');
-            if (!token) {
-                throw new Error('Пользователь не авторизован');
-            }
-
             const formData = new FormData();
             formData.append('name', productData.name);
             formData.append('price', productData.price);
@@ -138,9 +96,6 @@ class ProductManager {
 
             const response = await fetch(`/api/sellers/products/${productId}`, {
                 method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                },
                 body: formData
             });
 
@@ -158,17 +113,8 @@ class ProductManager {
     // Удалить товар
     async deleteProduct(productId) {
         try {
-            const token = localStorage.getItem('authToken');
-            if (!token) {
-                throw new Error('Пользователь не авторизован');
-            }
-
             const response = await fetch(`/api/sellers/products/${productId}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
+                method: 'DELETE'
             });
 
             if (!response.ok) {
@@ -185,18 +131,17 @@ class ProductManager {
     // Получить название категории
     getCategoryName(categoryKey) {
         const categories = {
-            "ELECTRONICS": "Электроника",
-            "CLOTHING": "Одежда",
-            "BOOKS": "Книги",
-            "FOOD": "Еда",
-            "SPORTS": "Спорт товары",
-            "HOME": "Товары для дома",
-            "BEAUTY": "Красота",
-            "OTHER": "Другое"
+            ELECTRONICS: 'Электроника',
+            CLOTHING: 'Одежда',
+            BOOKS: 'Книги',
+            FOOD: 'Еда',
+            SPORTS: 'Спорт товары',
+            HOME: 'Товары для дома',
+            BEAUTY: 'Красота',
+            OTHER: 'Другое'
         };
         return categories[categoryKey] || 'Другое';
     }
 }
 
-// Создаем глобальный экземпляр
 window.productManager = new ProductManager();

@@ -10,7 +10,7 @@ public class GatewayRoutesConfig {
 
     @Bean
     public RouteLocator customRouteLocator(RouteLocatorBuilder builder) {
-        return builder.routes()
+        return builder.routes()//TODO URL вынести в конфиг
 
                 // ── Auth Service ──────────────────────────────────────────
                 .route("auth-service", r -> r
@@ -43,7 +43,7 @@ public class GatewayRoutesConfig {
 
                 // ── Cart Service ──────────────────────────────────────────
                 .route("cart-service", r -> r
-                        .path("/api/cart/**")
+                        .path("/api/carts/**")
                         .filters(f -> f.stripPrefix(0))
                         .uri("http://localhost:8085"))
 

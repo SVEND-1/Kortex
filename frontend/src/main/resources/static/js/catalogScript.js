@@ -1,5 +1,4 @@
-// catalogScript.js - для работы с Spring бекендом (jQuery версия)
-// Поддерживает массив images (в том числе полные URL)
+// catalogScript.js - главная страница, использует cartManager
 
 let currentPage = 0;
 let totalPages = 1;
@@ -10,8 +9,9 @@ $(document).ready(function() {
     console.log('Каталог товаров загружен');
     initializeCatalog();
     loadProducts(0);
-    // Игнорируем ошибку 404 корзины, просто логируем
-    updateCartCounter().catch(e => console.warn('Корзина не доступна', e));
+    if (window.cartManager) {
+        window.cartManager.ready().then(() => updateCartCounter());
+    }
 });
 
 function initializeCatalog() {
@@ -20,7 +20,6 @@ function initializeCatalog() {
     setupPaginationListeners();
 }
 
-// Загрузка товаров с сервера с пагинацией
 async function loadProducts(page = 0) {
     try {
         const $productsGrid = $('#productsGrid');
@@ -49,8 +48,6 @@ async function loadProducts(page = 0) {
         });
 
         if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Ошибка ответа:', errorText);
             throw new Error(`Ошибка HTTP: ${response.status}`);
         }
 
@@ -69,7 +66,6 @@ async function loadProducts(page = 0) {
             displayProducts(data);
             $('.pagination-container').hide();
         } else {
-            console.warn('Неизвестная структура данных:', data);
             showError('Неверный формат данных от сервера');
         }
     } catch (error) {
@@ -78,7 +74,6 @@ async function loadProducts(page = 0) {
     }
 }
 
-// Отображение товаров (поддержка полных URL изображений)
 function displayProducts(products) {
     const $productsGrid = $('#productsGrid');
 
@@ -98,23 +93,15 @@ function displayProducts(products) {
     $('.pagination-container').show();
 
     const productsHtml = products.map(product => {
-        // ---- ИСПРАВЛЕНИЕ: корректный URL изображения ----
         let imageUrl = '/images/product-img.png';
         if (product.images && Array.isArray(product.images) && product.images.length > 0) {
             let firstImage = product.images[0];
             if (firstImage && (firstImage.startsWith('http://') || firstImage.startsWith('https://'))) {
-                imageUrl = firstImage; // уже полный URL
+                imageUrl = firstImage;
             } else if (firstImage) {
                 imageUrl = `/uploads/images/${firstImage}`;
             }
-        } else if (product.image) {
-            if (product.image.startsWith('http://') || product.image.startsWith('https://')) {
-                imageUrl = product.image;
-            } else {
-                imageUrl = `/uploads/images/${product.image}`;
-            }
         }
-        // -------------------------------------------------
 
         const categoryMap = {
             'ELECTRONICS': 'Электроника', 'CLOTHING': 'Одежда',
@@ -158,6 +145,43 @@ function displayProducts(products) {
     makeProductCardsClickable();
 }
 
+// ========== ОСНОВНЫЕ ИСПРАВЛЕНИЯ ДЛЯ КОРЗИНЫ ==========
+async function addToCartViaAPI(productId) {
+    if (!window.cartManager) {
+        console.error('cartManager не загружен');
+        showNotification('Ошибка: корзина недоступна', 'error');
+        return;
+    }
+    try {
+        await window.cartManager.addItem(productId);
+        showNotification('Товар добавлен в корзину!', 'success');
+        await updateCartCounter();
+    } catch (error) {
+        console.error(error);
+        showNotification('Ошибка: ' + error.message, 'error');
+    }
+}
+
+async function updateCartCounter() {
+    if (!window.cartManager) {
+        console.warn('cartManager не загружен');
+        return;
+    }
+    try {
+        await window.cartManager.ready();
+        const totalItems = window.cartManager.getUniqueCount();
+        const $cartLink = $('a[href="/cart"]');
+        $cartLink.find('.cart-counter').remove();
+        if (totalItems > 0) {
+            const $counter = $('<span>', { class: 'cart-counter', text: totalItems > 9 ? '9+' : totalItems });
+            $cartLink.css('position', 'relative').append($counter);
+        }
+    } catch (error) {
+        console.warn('Не удалось обновить счётчик корзины:', error);
+    }
+}
+// =================================================
+
 function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/[&<>]/g, function(m) {
@@ -176,27 +200,21 @@ function resetFilters() {
 }
 
 function setupFilters() {
-    const $categoryFilter = $('#categoryFilter');
-    if ($categoryFilter.length) {
-        $categoryFilter.on('change', function() {
-            currentPage = 0;
-            loadProducts(0);
-        });
-    }
-    const $sortFilter = $('#sortFilter');
-    if ($sortFilter.length) $sortFilter.hide(); // сортировка отключена
+    $('#categoryFilter').on('change', function() {
+        currentPage = 0;
+        loadProducts(0);
+    });
+    $('#sortFilter').hide();
 }
 
 function setupSearch() {
-    const $searchForm = $('#searchForm'); // изменили селектор
+    const $searchForm = $('#searchForm');
     const $searchInput = $('#search-input');
-
     $searchForm.on('submit', function(e) {
         e.preventDefault();
         currentPage = 0;
         loadProducts(0);
     });
-
     if ($searchInput.length) {
         let searchTimeout;
         $searchInput.on('input', function() {
@@ -210,12 +228,8 @@ function setupSearch() {
 }
 
 function setupPaginationListeners() {
-    $('#prevPage').on('click', function() {
-        if (currentPage > 0) loadProducts(currentPage - 1);
-    });
-    $('#nextPage').on('click', function() {
-        if (currentPage < totalPages - 1) loadProducts(currentPage + 1);
-    });
+    $('#prevPage').on('click', () => { if (currentPage > 0) loadProducts(currentPage - 1); });
+    $('#nextPage').on('click', () => { if (currentPage < totalPages - 1) loadProducts(currentPage + 1); });
 }
 
 function updatePageInfo() {
@@ -269,59 +283,6 @@ function formatPrice(price) {
     }).format(num);
 }
 
-async function addToCartViaAPI(productId) {
-    try {
-        const response = await fetch(`/api/carts/items?productId=${productId}`, {
-            method: "POST", credentials: "include",
-            headers: { "Accept": "application/json" }
-        });
-        if (response.redirected || response.url.includes("/login")) {
-            window.location.href = "/login";
-            return;
-        }
-        const contentType = response.headers.get("content-type");
-        if (contentType && contentType.includes("text/html")) {
-            window.location.href = "/login";
-            return;
-        }
-        if (!response.ok) {
-            const err = await response.json().catch(() => ({}));
-            throw new Error(err.error || "Ошибка при добавлении товара");
-        }
-        showNotification("Товар добавлен в корзину!");
-        await updateCartCounter();
-    } catch (e) {
-        console.error(e);
-        showNotification("Ошибка: " + e.message);
-    }
-}
-
-async function updateCartCounter() {
-    try {
-        const response = await fetch('/api/carts/me', {
-            method: 'GET',
-            headers: { 'Accept': 'application/json' }
-        });
-        if (!response.ok) {
-            if (response.status === 404) {
-                console.warn('Эндпоинт корзины не найден (404)');
-                return;
-            }
-            throw new Error(`HTTP ${response.status}`);
-        }
-        const cartData = await response.json();
-        const totalItems = cartData.totalItems || 0;
-        const $cartLink = $('a[href="/cart"]');
-        $cartLink.find('.cart-counter').remove();
-        if (totalItems > 0) {
-            const $counter = $('<span>', { class: 'cart-counter', text: totalItems > 9 ? '9+' : totalItems });
-            $cartLink.css('position', 'relative').append($counter);
-        }
-    } catch (error) {
-        console.warn('Не удалось обновить счётчик корзины:', error);
-    }
-}
-
 function viewProductDetails(productId) {
     window.location.href = `/productForm?id=${productId}`;
 }
@@ -335,9 +296,10 @@ function makeProductCardsClickable() {
     });
 }
 
-function showNotification(message) {
+function showNotification(message, type = 'success') {
     $('.notification').remove();
-    const $notification = $('<div class="notification">' + message + '</div>');
+    const bgColor = type === 'success' ? '#28a745' : '#dc3545';
+    const $notification = $(`<div class="notification" style="background: ${bgColor};">${message}</div>`);
     $('body').append($notification);
     setTimeout(() => $notification.css({ transform: 'translateX(0)', opacity: 1 }), 10);
     setTimeout(() => {
@@ -352,13 +314,12 @@ function showError(message) {
             <div class="error-icon">⚠️</div>
             <h3>Ошибка загрузки</h3>
             <p>${message}</p>
-            <button onclick="loadProducts(0)" class="btn-retry">Попробовать снова</button>
+            <button onclick="loadProducts(0)" class="btn-retry">Повторить</button>
         </div>
     `);
     $('.pagination-container').hide();
 }
 
-// Глобальные функции
 window.loadProducts = loadProducts;
 window.resetFilters = resetFilters;
 window.addToCartViaAPI = addToCartViaAPI;
