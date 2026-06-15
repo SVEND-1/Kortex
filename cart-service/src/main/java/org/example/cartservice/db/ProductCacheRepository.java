@@ -21,13 +21,12 @@ public class ProductCacheRepository {
         try {
             Object value = redisTemplate.opsForValue().get(CACHE_KEY_PREFIX + productId);
             if (value instanceof ProductResponse product) {
-                log.debug("Продукт {} получен из Redis", productId);
                 return product;
             }
             return null;
         } catch (Exception e) {
             log.warn("Ошибка чтения из Redis для productId={}: {}", productId, e.getMessage());
-            return null;
+            throw new RuntimeException("Ошибка чтения из Redis",e);
         }
     }
 
@@ -38,6 +37,7 @@ public class ProductCacheRepository {
                             CACHE_TTL_MINUTES, TimeUnit.MINUTES);
         } catch (Exception e) {
             log.warn("Ошибка сохранения в Redis для productId={}: {}", product.id(), e.getMessage());
+            throw new RuntimeException("Ошибка сохранения в Redis",e);
         }
     }
 }

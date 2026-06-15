@@ -6,11 +6,9 @@
     <title>Корзина</title>
     <link rel="stylesheet" href="css/mainFormStyle.css">
     <link rel="stylesheet" href="css/cartStyle.css">
-    <!-- Добавляем FontAwesome для иконок загрузки -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <style>
-        /* Стили для индикатора загрузки */
         .loading-overlay {
             display: none;
             position: fixed;
@@ -24,7 +22,6 @@
             align-items: center;
             flex-direction: column;
         }
-
         .loading-spinner {
             width: 50px;
             height: 50px;
@@ -33,44 +30,67 @@
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
-
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-
-        /* Стили для временно заблокированных кнопок */
-        .quantity-btn:disabled,
-        .remove-btn:disabled {
+        .quantity-btn:disabled, .remove-btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
         }
-
-        .item-updating {
-            opacity: 0.7;
-            pointer-events: none;
+        .clear-cart-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+        .clear-cart-btn:hover {
+            background: #c82333;
+        }
+        .cart-header-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 20px;
+        }
+        .item-price {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin: 8px 0 4px;
+        }
+        .per-piece {
+            font-size: 12px;
+            font-weight: normal;
+            color: #666;
+        }
+        .item-line-total {
+            font-size: 14px;
+            color: #667eea;
+            font-weight: 500;
         }
     </style>
 </head>
-
 <body>
-<!-- Индикатор загрузки -->
+
 <div id="loadingOverlay" class="loading-overlay">
     <div class="loading-spinner"></div>
     <p style="margin-top: 20px; color: #333;">Обновление корзины...</p>
 </div>
 
-<!--Шапка страницы-->
 <header class="header">
     <div class="container">
         <div class="header-content">
             <a href="/" class="logo">Kortex marketplace</a>
 
-            <form class="search-form" action="/search" method="GET">
+            <form class="search-form" id="searchForm">
                 <div class="search-container">
                     <input id="search-input" type="text" class="search-input" placeholder="Поиск товаров...">
                     <button type="submit" class="search-button">
-                        <img id="findImg" src="images/findImg.png" alt="Поиск">
+                        <img src="images/findImg.png" alt="Поиск">
                     </button>
                 </div>
             </form>
@@ -80,12 +100,10 @@
                     <img src="images/cart-img.png" alt="Корзина" class="nav-icon">
                     <span id="cartCounter">Корзина</span>
                 </a>
-
                 <a href="/profile" class="nav-link">
                     <img src="images/profile-img.png" alt="Профиль" class="nav-icon profile-icon">
                     <span class="profile-text">Профиль</span>
                 </a>
-
                 <a href="/login" class="nav-link">
                     <img src="images/join-img.png" alt="Войти" class="nav-icon">
                     Войти
@@ -95,12 +113,10 @@
     </div>
 </header>
 
-<!-- Основной контент корзины -->
 <main class="cart-container">
     <div class="container">
         <h1 class="cart-title">Корзина</h1>
 
-        <!-- Блок пустой корзины -->
         <div id="emptyCart" class="empty-cart">
             <div class="empty-cart-icon">
                 <i class="fas fa-shopping-cart" style="font-size: 80px; color: #ccc;"></i>
@@ -110,18 +126,19 @@
             <a href="/" class="btn btn-primary">Перейти на главную</a>
         </div>
 
-        <!-- Блок с товарами -->
         <div id="cartWithItems" class="cart-with-items" style="display: none;">
+            <div class="cart-header-actions">
+                <button id="clearCartBtn" class="clear-cart-btn">
+                    <i class="fas fa-trash-alt"></i> Очистить корзину
+                </button>
+            </div>
             <div class="cart-content">
-                <!-- Список товаров -->
                 <div class="cart-items" id="cartItems">
-                    <!-- Товары загружаются через JavaScript -->
                     <div class="cart-loading" id="cartLoading">
                         <p><i class="fas fa-spinner fa-spin"></i> Загрузка корзины...</p>
                     </div>
                 </div>
 
-                <!-- Итоговая информация -->
                 <div class="cart-summary">
                     <div class="summary-card">
                         <h3>Ваш заказ</h3>
@@ -138,8 +155,6 @@
                             <span id="finalTotal">0 ₽</span>
                         </div>
 
-                        <!-- Форма оформления заказа -->
-                        <!-- ИСПОЛЬЗУЕМ ТВОЙ МЕТОД /me-create В АДРЕСЕ -->
                         <form action="/checkout" method="GET">
                             <button type="submit" class="btn btn-primary checkout-btn" id="checkoutBtn" disabled>
                                 Перейти к оформлению
@@ -163,7 +178,6 @@
 <script src="js/cartScript.js"></script>
 
 <script>
-    // Дополнительные функции для обновления счетчика в шапке
     function updateCartCounter(count) {
         const counter = document.getElementById('cartCounter');
         if (counter) {
@@ -175,24 +189,23 @@
         }
     }
 
-    // Обновляем счетчик при изменении корзины
     window.addEventListener('cartUpdated', function(event) {
-        const items = event.detail?.items || [];
+        const detail = event.detail;
+        const items = detail && detail[0] ? detail[0].items : (detail?.items || []);
         updateCartCounter(items.length);
-
-        // Прячем индикатор загрузки
         const loadingOverlay = document.getElementById('loadingOverlay');
-        if (loadingOverlay) {
-            loadingOverlay.style.display = 'none';
-        }
+        if (loadingOverlay) loadingOverlay.style.display = 'none';
     });
 
-    // Показываем загрузку при действиях
     document.addEventListener('cartActionStarted', function() {
         const loadingOverlay = document.getElementById('loadingOverlay');
-        if (loadingOverlay) {
-            loadingOverlay.style.display = 'flex';
-        }
+        if (loadingOverlay) loadingOverlay.style.display = 'flex';
+    });
+
+    document.getElementById('searchForm')?.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const query = document.getElementById('search-input').value.trim();
+        if (query) window.location.href = `/?search=${encodeURIComponent(query)}`;
     });
 </script>
 </body>

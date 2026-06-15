@@ -1,4 +1,4 @@
-package org.example.authservice.kafka;
+package org.example.authservice.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -32,7 +32,7 @@ public class KafkaConfig {
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
 
         JsonSerializer<Object> jsonSerializer = new JsonSerializer<>(objectMapper);
-        jsonSerializer.setAddTypeInfo(false); // optional: omit __TypeId__ header
+        jsonSerializer.setAddTypeInfo(false);
 
         return new DefaultKafkaProducerFactory<>(
                 props,
@@ -46,35 +46,5 @@ public class KafkaConfig {
             ProducerFactory<String, Object> producerFactory
     ) {
         return new KafkaTemplate<>(producerFactory);
-    }
-
-
-    @Bean
-    public ConsumerFactory<String, NotifyEvent> consumerFactory(ObjectMapper objectMapper) {
-        Map<String, Object> props = new HashMap<>();
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, "notify-group");
-
-        JsonDeserializer<NotifyEvent> jsonDeserializer =
-                new JsonDeserializer<>(NotifyEvent.class, objectMapper);
-        jsonDeserializer.setRemoveTypeHeaders(false);
-        jsonDeserializer.addTrustedPackages("*");
-
-        return new DefaultKafkaConsumerFactory<>(
-                props,
-                new StringDeserializer(),
-                jsonDeserializer
-        );
-    }
-
-    @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, NotifyEvent> kafkaListenerContainerFactory(
-            ConsumerFactory<String, NotifyEvent> consumerFactory
-    ) {
-        ConcurrentKafkaListenerContainerFactory<String, NotifyEvent> factory =
-                new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(consumerFactory);
-        factory.setConcurrency(1);
-        return factory;
     }
 }

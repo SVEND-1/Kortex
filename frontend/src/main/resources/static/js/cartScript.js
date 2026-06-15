@@ -1,30 +1,23 @@
-// cartScript.js - отображение корзины с сервера (jQuery версия)
-// Ждем cartManager и обновляем при событиях
-
 let cartManager = null;
 
 async function initCartPage() {
-    // Ждем пока cartManager загрузится
     if (!window.cartManager) {
         console.error('cartManager не найден');
         return;
     }
-
     cartManager = window.cartManager;
     await cartManager.ready();
-
-    // Первоначальная отрисовка
     renderCart();
-
-    // Слушаем события обновления корзины (jQuery способ)
-    $(window).on('cartUpdated', function(event, cartData) {
+    $(window).on('cartUpdated', function() {
         renderCart();
+        if (typeof updateCartCounter === 'function') {
+            updateCartCounter(cartManager.getUniqueCount());
+        }
     });
 }
 
 function renderCart() {
     if (!cartManager) return;
-
     const items = cartManager.getItems();
     const total = cartManager.getTotal();
 
@@ -35,131 +28,109 @@ function renderCart() {
     const $totalPrice = $('#totalPrice');
     const $finalTotal = $('#finalTotal');
     const $checkoutBtn = $('#checkoutBtn');
+    const $clearCartBtn = $('#clearCartBtn');
 
     if (!items || items.length === 0) {
-        // Показываем пустую корзину
         $emptyCart.show();
         $cartWithItems.hide();
-
         if ($totalItemsText.length) $totalItemsText.text('Товары (0)');
         if ($totalPrice.length) $totalPrice.text(formatPrice(0));
         if ($finalTotal.length) $finalTotal.text(formatPrice(0));
         if ($cartItemsContainer.length) $cartItemsContainer.empty();
-
-        // Деактивируем кнопку оформления
-        if ($checkoutBtn.length) {
-            $checkoutBtn.prop('disabled', true).css('opacity', '0.6');
-        }
+        if ($checkoutBtn.length) $checkoutBtn.prop('disabled', true).css('opacity', '0.6');
+        if ($clearCartBtn.length) $clearCartBtn.hide();
         return;
     }
 
-    // Показываем корзину с товарами
     $emptyCart.hide();
     $cartWithItems.show();
+    if ($checkoutBtn.length) $checkoutBtn.prop('disabled', false).css('opacity', '1');
+    if ($clearCartBtn.length) $clearCartBtn.show();
 
-    // Активируем кнопку оформления
-    if ($checkoutBtn.length) {
-        $checkoutBtn.prop('disabled', false).css('opacity', '1');
-    }
-
-    // Отрисовываем товары
     if ($cartItemsContainer.length) {
         const itemsHtml = items.map(item => {
-            const imagePath = item.image ? `/uploads/images/${item.image}` : '/images/product-img.png';
-            const name = item.productName || item.name || 'Товар';
-            const price = Number(item.price) || 0;
-            const quantity = Number(item.quantity) || 1;
-            const subtotal = price * quantity;
+            let imageUrl = '/images/product-img.png';
+            if (item.image) {
+                if (item.image.startsWith('http') || item.image.startsWith('/')) {
+                    imageUrl = item.image;
+                } else {
+                    imageUrl = `/uploads/images/${item.image}`;
+                }
+            }
+
+            const name = item.productName || 'Товар';
+            const unitPrice = item.unitPrice;
+            const quantity = item.quantity;
+            const lineTotal = item.totalPrice;
+            const displayUnitPrice = (unitPrice > 0) ? unitPrice : (lineTotal / quantity);
+            const displayLineTotal = lineTotal;
 
             return `
             <div class="cart-item" data-item-id="${item.id}">
                 <div class="item-image">
-                    <img src="${imagePath}" alt="${name}" 
+                    <img src="${imageUrl}" alt="${escapeHtml(name)}" 
                          onerror="this.onerror=null;this.src='/images/product-img.png'">
                 </div>
                 <div class="item-details">
                     <h3 class="item-name">${escapeHtml(name)}</h3>
-                    <p class="item-description">${escapeHtml(item.description || '').substring(0,120)}${(item.description && item.description.length > 120) ? '...' : ''}</p>
-                    <div class="item-price">${formatPrice(price)}</div>
-                    <div class="item-subtotal">Итого: ${formatPrice(subtotal)}</div>
+                    <p class="item-description">${escapeHtml(item.description || '').substring(0, 120)}</p>
+                    <div class="item-price">${formatPrice(displayUnitPrice)} <span class="per-piece">за шт.</span></div>
+                    <div class="item-line-total">Итого: ${formatPrice(displayLineTotal)}</div>
                 </div>
                 <div class="item-controls">
                     <div class="quantity-controls">
-                        <button type="button" class="quantity-btn minus-btn" 
-                                data-action="decrease" data-id="${item.id}"
-                                ${quantity <= 1 ? 'disabled' : ''}>-</button>
+                        <button type="button" class="quantity-btn minus-btn" data-action="decrease" data-id="${item.id}" ${quantity <= 1 ? 'disabled' : ''}>-</button>
                         <span class="quantity">${quantity}</span>
-                        <button type="button" class="quantity-btn plus-btn" 
-                                data-action="increase" data-id="${item.id}">+</button>
+                        <button type="button" class="quantity-btn plus-btn" data-action="increase" data-id="${item.id}">+</button>
                     </div>
-                    <button type="button" class="remove-btn" 
-                            data-action="remove" data-id="${item.id}">Удалить</button>
+                    <button type="button" class="remove-btn" data-action="remove" data-id="${item.id}">Удалить</button>
                 </div>
             </div>`;
         }).join('');
-
         $cartItemsContainer.html(itemsHtml);
     }
 
-    // Обновляем итоги
     const uniqueCount = cartManager.getUniqueCount();
     if ($totalItemsText.length) $totalItemsText.text(`Товары (${uniqueCount})`);
     if ($totalPrice.length) $totalPrice.text(formatPrice(total));
     if ($finalTotal.length) $finalTotal.text(formatPrice(total));
 
-    // Вешаем обработчики событий
     attachCartEvents();
 }
 
-// Вешаем обработчики на кнопки
 function attachCartEvents() {
     const $container = $('#cartItems');
     if (!$container.length) return;
-
-    // Удаляем старые обработчики и вешаем новые
     $container.off('click', handleCartClick);
     $container.on('click', handleCartClick);
 }
 
-// Обработчик кликов по кнопкам в корзине
 async function handleCartClick(event) {
     const $button = $(event.target).closest('[data-action]');
     if (!$button.length) return;
-
     event.preventDefault();
-
     const action = $button.data('action');
     const itemId = $button.data('id');
-
     if (!action || !itemId) return;
 
-    // Блокируем кнопку на время запроса
     $button.prop('disabled', true);
-
     try {
-        if (action === 'increase') {
-            await cartManager.increase(itemId);
-        } else if (action === 'decrease') {
-            await cartManager.decrease(itemId);
-        } else if (action === 'remove') {
+        if (action === 'increase') await cartManager.increase(itemId);
+        else if (action === 'decrease') await cartManager.decrease(itemId);
+        else if (action === 'remove') {
             if (!confirm('Удалить товар из корзины?')) {
                 $button.prop('disabled', false);
                 return;
             }
             await cartManager.remove(itemId);
         }
-
-        // КОРЗИНА ОБНОВИТСЯ АВТОМАТИЧЕСКИ ЧЕРЕЗ СОБЫТИЕ cartUpdated
-        // которое отправляет cartManager после успешного запроса
-
     } catch (error) {
-        console.error('Ошибка:', error);
-        alert('Не удалось выполнить действие: ' + error.message);
+        console.error(error);
+        showNotification('Ошибка: ' + error.message, 'error');
         $button.prop('disabled', false);
     }
 }
 
-// Форматирование цены
 function formatPrice(price) {
     return new Intl.NumberFormat('ru-RU', {
         style: 'currency',
@@ -168,12 +139,40 @@ function formatPrice(price) {
     }).format(price || 0);
 }
 
-// Безопасное HTML
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
 
-// Запускаем при загрузке страницы (jQuery способ)
+$(document).on('click', '#clearCartBtn', async function() {
+    if (!cartManager) return;
+    if (confirm('Вы уверены, что хотите очистить корзину?')) {
+        try {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (loadingOverlay) loadingOverlay.style.display = 'flex';
+            await cartManager.clearCart();
+            showNotification('Корзина очищена', 'success');
+        } catch (error) {
+            showNotification('Ошибка очистки: ' + error.message, 'error');
+        } finally {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (loadingOverlay) loadingOverlay.style.display = 'none';
+        }
+    }
+});
+
+function showNotification(message, type = 'success') {
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    notification.style.cssText = `
+        position: fixed; top: 20px; right: 20px; padding: 12px 24px;
+        border-radius: 8px; background: ${type === 'success' ? '#4CAF50' : '#f44336'};
+        color: white; z-index: 2000; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    `;
+    document.body.appendChild(notification);
+    setTimeout(() => notification.remove(), 3000);
+}
+
 $(document).ready(initCartPage);

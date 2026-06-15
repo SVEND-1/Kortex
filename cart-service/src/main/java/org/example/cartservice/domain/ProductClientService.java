@@ -19,7 +19,6 @@ public class ProductClientService {
     public ProductResponse getProduct(Long productId) {
         ProductResponse cached = productCacheRepository.get(productId);
         if (cached != null) {
-            log.debug("Cache hit для productId={}", productId);
             return cached;
         }
 

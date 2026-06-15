@@ -19,6 +19,7 @@ import org.example.authservice.domain.exception.EmailAlreadyExistsException;
 import org.example.authservice.domain.exception.InvalidVerificationCodeException;
 import org.example.authservice.domain.exception.RegistrationExpiredException;
 import org.example.authservice.kafka.NotifyKafkaProducer;
+import org.example.kafkaEvent.CartRegisterEvent;
 import org.example.kafkaEvent.NotifyEvent;
 import org.example.kafkaEvent.NotifyType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -94,6 +95,7 @@ public class RegistrationManager {
             validateVerifyRegistration(data, request);
 
             UserEntity savedUser = createUser(data);
+            kafkaProducer.sendMessageToKafkaCart(new CartRegisterEvent(savedUser.getId()));
             TokenResponse tokens = tokenManagementManager.createTokenPair(
                     savedUser.getEmail(), savedUser.getRole(), savedUser.getId(),response);
             addToSpringSecurityContext(savedUser.getEmail());

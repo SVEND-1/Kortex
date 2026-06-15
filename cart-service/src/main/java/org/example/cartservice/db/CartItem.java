@@ -32,4 +32,5 @@ public class CartItem {
 
     @Column(name = "price", nullable = false)
     private BigDecimal price;
+
 }
