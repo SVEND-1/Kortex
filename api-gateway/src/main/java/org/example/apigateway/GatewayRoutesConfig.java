@@ -18,19 +18,10 @@ public class GatewayRoutesConfig {
                         .filters(f -> f.stripPrefix(0))
                         .uri("http://localhost:8081"))
 
-                .route("user-service", r -> r
-                        .path("/api/users/**")
-                        .filters(f -> f.stripPrefix(0))
-                        .uri("http://localhost:8090"))
 
                 // ── Product Service ───────────────────────────────────────
                 .route("product-service", r -> r
-                        .path("/api/products/**")
-                        .filters(f -> f.stripPrefix(0))
-                        .uri("http://localhost:8082"))
-
-                .route("product-service", r -> r
-                        .path("/api/sellers/**")
+                        .path("/api/products/**","/api/sellers/**")
                         .filters(f -> f.stripPrefix(0))
                         .uri("http://localhost:8082"))
 
@@ -60,7 +51,7 @@ public class GatewayRoutesConfig {
 
                 // ── Admin Service ─────────────────────────────────────────
                 .route("admin-service", r -> r
-                        .path("/api/admin/**")
+                        .path("/api/admin/role-request/**","/api/users/role-request/**")
                         .filters(f -> f.stripPrefix(0))
                         .uri("http://localhost:8087"))
 
@@ -95,6 +86,11 @@ public class GatewayRoutesConfig {
                         .uri("http://localhost:8080"))
 
 
+
+                .route("user-service", r -> r
+                        .path("/api/users/**")
+                        .filters(f -> f.stripPrefix(0))
+                        .uri("http://localhost:8090"))
                 .build();
     }
 }

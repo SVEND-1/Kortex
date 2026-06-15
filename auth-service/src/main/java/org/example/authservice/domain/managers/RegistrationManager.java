@@ -98,6 +98,7 @@ public class RegistrationManager {
             UserEntity savedUser = createUser(data);
 
             kafkaProducer.sendMessageToKafkaCart(new CartRegisterEvent(savedUser.getId()));
+            //TODO надо бы лучше Через REST
             kafkaProducer.sendMessageToKafkaUser(new UserRegisterEvent(savedUser.getId(),savedUser.getEmail(),savedUser.getName()));
 
             TokenResponse tokens = tokenManagementManager.createTokenPair(

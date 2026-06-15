@@ -5,5 +5,8 @@ public enum NotifyType {
     REPLAY_CODE,
     LOGIN,
     PASSWORD_RESET,
-    ROLE_REQUEST
+    ROLE_REQUEST,
+    DOWNGRADE_ROLE,
+    APPROVE_ROLE,
+    REJECT_ROLE
 }
