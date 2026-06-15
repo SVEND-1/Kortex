@@ -1,933 +1,641 @@
-// profileScript.js - ПОЛНАЯ ВЕРСИЯ С ЗАЯВКАМИ НА РОЛИ
+// profileScript.js — с модальным окном адреса, DaData, Leaflet, заявками на роли
 
 document.addEventListener('DOMContentLoaded', async function() {
-    console.log('Загрузка страницы профиля...');
-
     try {
-        // 1. Инициализируем UI
         initTabs();
-        initProfileForms();
         initModals();
-
-        // 2. Загружаем профиль пользователя через DTO
         await loadUserProfile();
-
-        // 3. Загружаем заявки пользователя на роли
         await loadUserRoleRequests();
-
-        // 4. Скрываем историю заказов (временно)
         hideOrdersSection();
-
+        initAddressModal();
     } catch (error) {
-        console.error('Ошибка инициализации профиля:', error);
-        showProfileNotification('Ошибка загрузки профиля', 'error');
-        renderDefaultProfile();
+        console.error('Ошибка инициализации:', error);
+        showNotification('Не удалось загрузить профиль', 'error');
     }
 });
 
-// ============ КОНСТАНТЫ И НАСТРОЙКИ ============
-
-const API_ENDPOINTS = {
-    GET_PROFILE: '/api/users/me',
-    UPDATE_ADDRESS: '/api/users/address',
-    CREATE_ROLE_REQUEST: '/api/users/role-request',
-    GET_ROLE_REQUESTS: '/api/users/role-request'
+// ============ Константы ============
+const API = {
+    profile: '/api/users',
+    roleRequests: '/api/users/role-request'
 };
+const DADATA_TOKEN = 'be1da374113295d2e5a7f71025adb4986c7de957';
 
 const ROLE_MAP = {
-    'USER': { text: 'Покупатель', icon: '👤', buttonText: 'Профиль' },
-    'SELLER': { text: 'Продавец', icon: '🏪', buttonText: 'Для продавца' },
-    'COURIER': { text: 'Курьер', icon: '🚚', buttonText: 'Для курьера' },
-    'ADMIN': { text: 'Админ', icon: '⚙️', buttonText: 'Для админа' }
+    'USER': { text: 'Покупатель', icon: '👤' },
+    'SELLER': { text: 'Продавец', icon: '🏪' },
+    'COURIER': { text: 'Курьер', icon: '🚚' },
+    'ADMIN': { text: 'Админ', icon: '⚙️' }
 };
 
-const REQUEST_STATUS_MAP = {
+const REQUEST_STATUS = {
     'PENDING': { text: '⏳ Ожидает', class: 'pending' },
     'APPROVED': { text: '✅ Одобрено', class: 'approved' },
     'REJECTED': { text: '❌ Отклонено', class: 'rejected' }
 };
 
-// ============ ЗАГРУЗКА ПРОФИЛЯ ============
+// ============ Вспомогательная функция очистки названия региона ============
+function cleanRegionName(regionWithType) {
+    if (!regionWithType) return '';
+    // Убираем типовые слова: республика, респ, область, обл, край, г., город и т.д.
+    const cleaned = regionWithType
+        .replace(/^(республика|респ)\s+/i, '')
+        .replace(/^(область|обл)\s+/i, '')
+        .replace(/^(край)\s+/i, '')
+        .replace(/^(город|г\.)\s+/i, '');
+    return cleaned.trim();
+}
 
+// ============ Загрузка и отображение профиля ============
 async function loadUserProfile() {
     try {
-        console.log('Запрос профиля через DTO...');
-
-        const response = await fetch(API_ENDPOINTS.GET_PROFILE, {
+        const response = await fetch(API.profile, {
             method: 'GET',
             headers: { 'Accept': 'application/json' },
             credentials: 'include'
         });
-
-        console.log('Статус профиля:', response.status);
-
         if (response.status === 401) {
-            console.warn('Пользователь не авторизован');
             window.location.href = '/login?redirect=/profile';
             return;
         }
-
-        if (!response.ok) {
-            throw new Error(`Ошибка сервера: ${response.status}`);
-        }
-
-        const userData = await response.json();
-        console.log('Получен DTO профиль:', userData);
-
-        renderUserProfile(userData);
-        saveProfileToCache(userData);
-
-    } catch (error) {
-        console.error('Ошибка загрузки профиля:', error);
-
-        // Пробуем загрузить из кэша
-        const cachedProfile = loadProfileFromCache();
-        if (cachedProfile) {
-            console.log('Используем кэшированный профиль');
-            renderUserProfile(cachedProfile);
-            showProfileNotification('⚠️ Используются локальные данные', 'warning');
-        } else {
-            renderDefaultProfile();
-        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const user = await response.json();
+        renderProfile(user);
+    } catch (err) {
+        console.error(err);
+        showNotification('Ошибка загрузки профиля', 'error');
+        renderDefaultProfile();
     }
 }
 
-// ============ ОТОБРАЖЕНИЕ ПРОФИЛЯ ============
+function renderProfile(user) {
+    document.getElementById('profileName').value = user.name || '';
+    document.getElementById('profileEmail').value = user.email || '';
+    document.querySelector('.profile-name').textContent = user.name || 'Гость';
+    document.querySelector('.profile-email').textContent = user.email || '';
 
-function renderUserProfile(user) {
-    console.log('Рендерим профиль из DTO:', user);
+    const addr = user.address || {};
+    const regionClean = cleanRegionName(addr.region);
+    const addressString = [regionClean, addr.city, addr.street, addr.house].filter(Boolean).join(', ') || 'Не указан';
+    document.getElementById('currentAddressDisplay').textContent = addressString;
 
-    // Основные поля из UserCartDTO
-    const name = user.name || 'Не указано';
-    const email = user.email || 'Не указан';
-    const address = user.address || 'Адрес не указан';
+    // Сохраняем в скрытые поля
+    document.getElementById('profileRegion').value = addr.region || '';
+    document.getElementById('profileCity').value = addr.city || '';
+    document.getElementById('profileStreet').value = addr.street || '';
+    document.getElementById('profileHouse').value = addr.house || '';
+    document.getElementById('profileApartment').value = addr.apartment || '';
+    if (user.latitude) document.getElementById('profileLat').value = user.latitude;
+    if (user.longitude) document.getElementById('profileLon').value = user.longitude;
+
     const role = user.role || 'USER';
-    const cartId = user.cartId || null;
-
-    // Заполняем форму
-    document.getElementById('profileName').value = name;
-    document.getElementById('profileEmail').value = email;
-    document.getElementById('profileAddress').value = address;
-
-    // Заголовок профиля
-    const profileNameElement = document.querySelector('.profile-name');
-    const profileEmailElement = document.querySelector('.profile-email');
-
-    if (profileNameElement) {
-        profileNameElement.textContent = name;
-    }
-
-    if (profileEmailElement) {
-        profileEmailElement.textContent = email;
-    }
-
-    // Отображаем роль
-    updateRoleDisplay(role);
-
-    // Обновляем кнопки ролей
-    updateRoleButtons(role);
-
-    // Сохраняем роль для использования в формах
     document.body.dataset.userRole = role;
+    updateRoleDisplay(role);
+    updateRoleButtons(role);
 }
 
 function renderDefaultProfile() {
-    const name = 'Гость';
-    const email = 'Войдите в аккаунт';
-
-    document.getElementById('profileName').value = name;
-    document.getElementById('profileEmail').value = email;
-    document.getElementById('profileAddress').value = '';
-
-    document.querySelector('.profile-name').textContent = name;
-    document.querySelector('.profile-email').textContent = email;
-
-    // Блокируем форму
-    const inputs = document.querySelectorAll('#personalForm input, #personalForm textarea');
-    inputs.forEach(input => input.disabled = true);
-
+    document.getElementById('profileName').value = 'Гость';
+    document.getElementById('profileEmail').value = 'Не авторизован';
+    document.querySelector('.profile-name').textContent = 'Гость';
+    document.querySelector('.profile-email').textContent = 'Войдите в аккаунт';
+    document.getElementById('currentAddressDisplay').textContent = 'Не указан';
     const submitBtn = document.querySelector('#personalForm .btn-primary');
     if (submitBtn) submitBtn.disabled = true;
 }
 
+// ============ Роли и кнопки ============
 function updateRoleDisplay(role) {
-    const roleInfo = ROLE_MAP[role] || ROLE_MAP.USER;
-
-    // Обновляем отображение роли
+    const info = ROLE_MAP[role] || ROLE_MAP.USER;
     const roleElements = document.querySelectorAll('.user-role-display');
-    roleElements.forEach(el => {
-        el.innerHTML = `${roleInfo.icon} ${roleInfo.text}`;
-    });
-
-    // Обновляем кнопки в боковой панели на основе реальной роли
-    updateSidebarRoleButtons(role);
+    roleElements.forEach(el => el.innerHTML = `${info.icon} ${info.text}`);
+    updateSidebarButtons(role);
 }
 
-function updateSidebarRoleButtons(userRole) {
-    const roleButtonsContainer = document.querySelector('.role-buttons');
-    if (!roleButtonsContainer) return;
-
-    // Очищаем контейнер
-    roleButtonsContainer.innerHTML = '';
-
-    // Добавляем кнопки в зависимости от роли пользователя
-    if (userRole === 'USER') {
-        // Пользователь может подать заявку на продавца или курьера
-        roleButtonsContainer.innerHTML = `
-            <a href="/seller" class="btn btn-seller" style="width: 100%; margin-bottom: 10px;">
-                🏪 Для продавца
-            </a>
-            <a href="/courier" class="btn btn-courier" style="width: 100%; margin-bottom: 10px;">
-                🚚 Для курьера
-            </a>
-            <a href="/admin" class="btn btn-admin" style="width: 100%; display: none;">
-                ⚙️ Для админа
-            </a>
-        `;
-    } else if (userRole === 'SELLER') {
-        // Продавец видит кнопку для своей панели
-        roleButtonsContainer.innerHTML = `
-            <a href="/seller" class="btn btn-seller" style="width: 100%; margin-bottom: 10px;">
-                🏪 Панель продавца
-            </a>
-            <a href="/courier" class="btn btn-courier" style="width: 100%; margin-bottom: 10px; opacity: 0.6; cursor: not-allowed;" onclick="return false;">
-                🚚 Для курьера
-            </a>
-            <a href="/admin" class="btn btn-admin" style="width: 100%; display: none;">
-                ⚙️ Для админа
-            </a>
-        `;
-    } else if (userRole === 'COURIER') {
-        // Курьер видит кнопку для своей панели
-        roleButtonsContainer.innerHTML = `
-            <a href="/seller" class="btn btn-seller" style="width: 100%; margin-bottom: 10px; opacity: 0.6; cursor: not-allowed;" onclick="return false;">
-                🏪 Для продавца
-            </a>
-            <a href="/courier" class="btn btn-courier" style="width: 100%; margin-bottom: 10px;">
-                🚚 Панель курьера
-            </a>
-            <a href="/admin" class="btn btn-admin" style="width: 100%; display: none;">
-                ⚙️ Для админа
-            </a>
-        `;
-    } else if (userRole === 'ADMIN') {
-        // Админ видит кнопку для админ панели
-        roleButtonsContainer.innerHTML = `
-            <a href="/seller" class="btn btn-seller" style="width: 100%; margin-bottom: 10px;">
-                🏪 Панель продавца
-            </a>
-            <a href="/courier" class="btn btn-courier" style="width: 100%; margin-bottom: 10px;">
-                🚚 Панель курьера
-            </a>
-            <a href="/admin" class="btn btn-admin" style="width: 100%;">
-                ⚙️ Панель администратора
-            </a>
-        `;
+function updateSidebarButtons(role) {
+    const container = document.querySelector('.role-buttons');
+    if (!container) return;
+    container.innerHTML = '';
+    if (role === 'USER') {
+        container.innerHTML = `<a href="/seller" class="btn btn-seller">🏪 Для продавца</a>
+                               <a href="/courier" class="btn btn-courier">🚚 Для курьера</a>`;
+    } else if (role === 'SELLER') {
+        container.innerHTML = `<a href="/seller" class="btn btn-seller">🏪 Панель продавца</a>
+                               <a href="/courier" class="btn btn-courier" style="opacity:0.6; pointer-events:none;">🚚 Для курьера</a>`;
+    } else if (role === 'COURIER') {
+        container.innerHTML = `<a href="/seller" class="btn btn-seller" style="opacity:0.6; pointer-events:none;">🏪 Для продавца</a>
+                               <a href="/courier" class="btn btn-courier">🚚 Панель курьера</a>`;
+    } else if (role === 'ADMIN') {
+        container.innerHTML = `<a href="/seller" class="btn btn-seller">🏪 Панель продавца</a>
+                               <a href="/courier" class="btn btn-courier">🚚 Панель курьера</a>
+                               <a href="/admin" class="btn btn-admin">⚙️ Админка</a>`;
     }
 }
 
-// ============ ОБНОВЛЕНИЕ КНОПОК ЗАЯВОК НА РОЛИ ============
+function updateRoleButtons(role) {
+    const cards = document.querySelectorAll('.request-card');
+    if (cards.length < 3) return;
+    const [sellerCard, courierCard, downgradeCard] = cards;
+    const sellerBtn = sellerCard.querySelector('button');
+    const courierBtn = courierCard.querySelector('button');
+    const downgradeBtn = downgradeCard.querySelector('button');
 
-function updateRoleButtons(userRole) {
-    const requestCards = document.querySelectorAll('.request-card');
-    if (!requestCards || requestCards.length < 3) return;
-
-    const sellerCard = requestCards[0];
-    const courierCard = requestCards[1];
-    const downgradeCard = requestCards[2];
-
-    // Сбрасываем все карточки
-    [sellerCard, courierCard, downgradeCard].forEach(card => {
-        card.style.opacity = '1';
-        const button = card.querySelector('button');
-        if (button) {
-            button.disabled = false;
-        }
-    });
-
-    // Настраиваем в зависимости от роли
-    if (userRole === 'USER') {
-        // Пользователь может подать заявку на продавца или курьера
-        sellerCard.querySelector('button').textContent = '📝 Стать продавцом';
-        courierCard.querySelector('button').textContent = '📝 Стать курьером';
-        sellerCard.style.opacity = '1';
-        courierCard.style.opacity = '1';
-        downgradeCard.style.opacity = '0.6';
-        downgradeCard.querySelector('button').disabled = true;
-        downgradeCard.querySelector('button').textContent = '📝 Сняться с роли';
-
-    } else if (userRole === 'SELLER') {
-        // Продавец не может подать заявку на продавца
-        sellerCard.style.opacity = '0.6';
-        sellerCard.querySelector('button').disabled = true;
-        sellerCard.querySelector('button').textContent = '✅ Вы уже продавец';
-
-        // Может подать заявку на курьера
-        courierCard.querySelector('button').textContent = '📝 Стать курьером';
-        courierCard.style.opacity = '1';
-
-        // Может подать заявку на снятие с роли
-        downgradeCard.style.opacity = '1';
-        downgradeCard.querySelector('button').disabled = false;
-        downgradeCard.querySelector('button').textContent = '📝 Сняться с роли продавца';
-
-    } else if (userRole === 'COURIER') {
-        // Курьер не может подать заявку на курьера
-        courierCard.style.opacity = '0.6';
-        courierCard.querySelector('button').disabled = true;
-        courierCard.querySelector('button').textContent = '✅ Вы уже курьер';
-
-        // Может подать заявку на продавца
-        sellerCard.querySelector('button').textContent = '📝 Стать продавцом';
-        sellerCard.style.opacity = '1';
-
-        // Может подать заявку на снятие с роли
-        downgradeCard.style.opacity = '1';
-        downgradeCard.querySelector('button').disabled = false;
-        downgradeCard.querySelector('button').textContent = '📝 Сняться с роли курьера';
-
-    } else if (userRole === 'ADMIN') {
-        // Админ не может подавать заявки на смену роли
-        [sellerCard, courierCard, downgradeCard].forEach(card => {
-            card.style.opacity = '0.6';
-            const button = card.querySelector('button');
-            button.disabled = true;
-            button.textContent = '🚫 Недоступно для админа';
-        });
+    if (role === 'USER') {
+        sellerBtn.textContent = '📝 Стать продавцом'; sellerBtn.disabled = false;
+        courierBtn.textContent = '📝 Стать курьером'; courierBtn.disabled = false;
+        downgradeBtn.disabled = true; downgradeCard.style.opacity = '0.6';
+    } else if (role === 'SELLER') {
+        sellerBtn.textContent = '✅ Вы уже продавец'; sellerBtn.disabled = true;
+        courierBtn.textContent = '📝 Стать курьером'; courierBtn.disabled = false;
+        downgradeBtn.disabled = false; downgradeCard.style.opacity = '1';
+        downgradeBtn.textContent = '📝 Сняться с роли продавца';
+    } else if (role === 'COURIER') {
+        sellerBtn.textContent = '📝 Стать продавцом'; sellerBtn.disabled = false;
+        courierBtn.textContent = '✅ Вы уже курьер'; courierBtn.disabled = true;
+        downgradeBtn.disabled = false; downgradeCard.style.opacity = '1';
+        downgradeBtn.textContent = '📝 Сняться с роли курьера';
+    } else if (role === 'ADMIN') {
+        sellerBtn.disabled = true; courierBtn.disabled = true; downgradeBtn.disabled = true;
+        sellerBtn.textContent = '🚫 Недоступно'; courierBtn.textContent = '🚫 Недоступно'; downgradeBtn.textContent = '🚫 Недоступно';
     }
 }
 
-// ============ ОБНОВЛЕНИЕ ПРОФИЛЯ ============
-
-function initProfileForms() {
-    const personalForm = document.getElementById('personalForm');
-    if (personalForm) {
-        personalForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            await updateUserProfile();
-        });
-    }
-}
-
-async function updateUserProfile() {
+// ============ Сохранение имени и email ============
+document.getElementById('personalForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
     const name = document.getElementById('profileName').value.trim();
-    const address = document.getElementById('profileAddress').value.trim();
+    const email = document.getElementById('profileEmail').value.trim();
+    if (!name) return showNotification('Имя не может быть пустым', 'error');
 
-    if (!name) {
-        showProfileNotification('Имя не может быть пустым', 'error');
-        return;
-    }
-
+    const btn = e.target.querySelector('button[type="submit"]');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Сохранение...';
     try {
-        const submitBtn = document.querySelector('#personalForm .btn-primary');
-        const originalText = submitBtn.innerHTML;
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = 'Сохранение...';
-
-        // Обновляем адрес через API
-        let serverUpdated = false;
-        try {
-            const params = new URLSearchParams();
-            params.append('newAddress', address);
-
-            const response = await fetch(API_ENDPOINTS.UPDATE_ADDRESS, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: params,
-                credentials: 'include'
-            });
-
-            if (response.ok) {
-                serverUpdated = true;
-                console.log('Адрес обновлен на сервере');
-            }
-        } catch (serverError) {
-            console.warn('Не удалось обновить на сервере:', serverError);
-        }
-
-        // Обновляем локальные данные
-        const currentUser = loadProfileFromCache() || {};
-        const updatedProfile = {
-            ...currentUser,
-            name: name,
-            address: address,
-            updatedAt: new Date().toISOString()
-        };
-
-        saveProfileToCache(updatedProfile);
-        document.querySelector('.profile-name').textContent = name;
-
-        // Показываем уведомление
-        if (serverUpdated) {
-            showProfileNotification('✅ Профиль успешно обновлен!', 'success');
-        } else {
-            showProfileNotification('⚠️ Изменения сохранены локально', 'warning');
-        }
-
-    } catch (error) {
-        console.error('Ошибка обновления профиля:', error);
-        showProfileNotification('❌ Ошибка при обновлении', 'error');
-    } finally {
-        const submitBtn = document.querySelector('#personalForm .btn-primary');
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = 'Сохранить изменения';
-        }
-    }
-}
-
-// ============ ЗАЯВКИ НА РОЛИ ============
-
-async function loadUserRoleRequests() {
-    try {
-        console.log('Загрузка заявок на роли...');
-
-        const response = await fetch(API_ENDPOINTS.GET_ROLE_REQUESTS, {
-            method: 'GET',
-            headers: { 'Accept': 'application/json' },
+        const response = await fetch(API.profile, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email }), // только имя и email
             credentials: 'include'
         });
-
         if (response.ok) {
-            const requests = await response.json();
-            console.log('Получены заявки:', requests);
-            renderRoleRequests(requests);
+            showNotification('✅ Имя и email обновлены', 'success');
+            document.querySelector('.profile-name').textContent = name;
         } else {
-            console.warn('Не удалось загрузить заявки:', response.status);
-            renderEmptyRequests();
+            const err = await response.text();
+            throw new Error(err || 'Ошибка сервера');
         }
+    } catch (err) {
+        showNotification(`❌ ${err.message}`, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+});
 
-    } catch (error) {
-        console.error('Ошибка загрузки заявок:', error);
-        renderEmptyRequests();
+// ============ Заявки на роли ============
+async function loadUserRoleRequests() {
+    try {
+        const response = await fetch(API.roleRequests, { credentials: 'include' });
+        if (response.status === 404) {
+            renderRoleRequests([]);
+            return;
+        }
+        if (!response.ok) throw new Error();
+        const requests = await response.json();
+        renderRoleRequests(requests);
+    } catch {
+        renderRoleRequests([]);
     }
 }
 
 function renderRoleRequests(requests) {
-    const requestsList = document.getElementById('requestsList');
-    if (!requestsList) return;
-
+    const container = document.getElementById('requestsList');
+    if (!container) return;
     if (!requests || requests.length === 0) {
-        renderEmptyRequests();
+        container.innerHTML = `<div class="no-requests">📭 У вас ещё нет заявок</div>`;
         return;
     }
-
-    let requestsHtml = '';
-
-    requests.forEach(request => {
-        const statusInfo = REQUEST_STATUS_MAP[request.status] || REQUEST_STATUS_MAP.PENDING;
-        const date = formatDate(request.createdAt);
-        const roleText = getRoleText(request.requestedRole);
-        const actionText = request.typeAction === 'ENHANCE' ? 'Повышение до' : 'Снятие роли';
-
-        requestsHtml += `
-            <div class="request-item status-${statusInfo.class}">
+    container.innerHTML = requests.map(req => {
+        const status = REQUEST_STATUS[req.status] || REQUEST_STATUS.PENDING;
+        const action = req.typeAction === 'ENHANCE' ? 'Повышение до' : 'Снятие роли';
+        const roleName = ROLE_MAP[req.requestedRole]?.text || req.requestedRole;
+        const date = formatDate(req.createdAt);
+        return `
+            <div class="request-item status-${status.class}">
                 <div class="request-header">
-                    <span class="request-action">${actionText}</span>
-                    <span class="request-role">${roleText}</span>
+                    <span>${action}</span>
+                    <span class="request-role">${roleName}</span>
                     <span class="request-date">${date}</span>
                 </div>
-                <div class="request-body">
-                    <p class="request-message">${request.message || 'Без описания'}</p>
-                </div>
+                <div class="request-body"><p>${escapeHtml(req.message || 'Без описания')}</p></div>
                 <div class="request-footer">
-                    <span class="request-status ${statusInfo.class}">${statusInfo.text}</span>
-                    <span class="request-id">ID: ${request.id}</span>
+                    <span class="request-status ${status.class}">${status.text}</span>
+                    <span>ID: ${req.id}</span>
                 </div>
             </div>
         `;
-    });
-
-    requestsList.innerHTML = requestsHtml;
-}
-
-function renderEmptyRequests() {
-    const requestsList = document.getElementById('requestsList');
-    if (!requestsList) return;
-
-    requestsList.innerHTML = `
-        <div class="no-requests">
-            <div class="no-requests-icon">📭</div>
-            <p>У вас еще нет отправленных заявок</p>
-            <p class="no-requests-hint">Отправьте заявку на изменение роли выше</p>
-        </div>
-    `;
+    }).join('');
 }
 
 async function submitRoleRequest(type, requestedRole, message) {
-    try {
-        const params = new URLSearchParams();
-        params.append('requestedRole', requestedRole);
-        params.append('typeAction', type);
-        params.append('message', message);
-
-        console.log('Отправка заявки:', { type, requestedRole, message });
-
-// Вместо URLSearchParams используем JSON
-        const response = await fetch(API_ENDPOINTS.CREATE_ROLE_REQUEST, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',  // ✅ Меняем на JSON
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({                    // ✅ Отправляем JSON
-                requestedRole: requestedRole,
-                typeAction: type,
-                message: message
-            }),
-            credentials: 'include'
-        });
-        if (response.ok) {
-            const result = await response.json();
-            console.log('Заявка создана:', result);
-
-            showProfileNotification('✅ Заявка успешно отправлена!', 'success');
-
-            // Обновляем список заявок
-            await loadUserRoleRequests();
-
-            return result;
-        } else {
-            const errorText = await response.text();
-            throw new Error(errorText || 'Ошибка сервера');
-        }
-
-    } catch (error) {
-        console.error('Ошибка отправки заявки:', error);
-        throw error;
+    const response = await fetch(API.roleRequests, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestedRole, typeAction: type, message }),
+        credentials: 'include'
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Ошибка при отправке');
     }
+    return response.json();
 }
 
-// ============ ИНИЦИАЛИЗАЦИЯ МОДАЛЬНЫХ ОКОН ============
-
+// ============ Модальные окна заявок ============
 function initModals() {
-    // Счетчики символов
-    const textAreas = document.querySelectorAll('textarea[maxlength]');
-    textAreas.forEach(textarea => {
-        textarea.addEventListener('input', function() {
-            const counter = this.parentNode.querySelector('.char-counter span');
-            if (counter) {
-                counter.textContent = this.value.length;
-            }
-        });
+    const msgField = document.getElementById('requestMessage');
+    if (msgField) msgField.addEventListener('input', () => {
+        document.getElementById('charCount').innerText = msgField.value.length;
+    });
+    const downgradeMsg = document.getElementById('downgradeMessage');
+    if (downgradeMsg) downgradeMsg.addEventListener('input', () => {
+        document.getElementById('downgradeCharCount').innerText = downgradeMsg.value.length;
     });
 
-    // Обработка формы повышения роли
     const requestForm = document.getElementById('requestForm');
     if (requestForm) {
-        requestForm.addEventListener('submit', async function(e) {
+        requestForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            await handleEnhanceRequest();
+            const role = document.getElementById('requestRole').value;
+            const message = document.getElementById('requestMessage').value.trim();
+            if (!role) return showNotification('Выберите роль', 'error');
+            if (message.length < 20) return showNotification('Опишите причину подробнее (мин. 20 символов)', 'error');
+            const btn = requestForm.querySelector('button[type="submit"]');
+            btn.disabled = true;
+            try {
+                await submitRoleRequest('ENHANCE', role, message);
+                closeRequestModal();
+                await loadUserRoleRequests();
+                showNotification('✅ Заявка отправлена', 'success');
+            } catch (err) {
+                showNotification(`❌ ${err.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+            }
         });
     }
 
-    // Обработка формы снятия роли
     const downgradeForm = document.getElementById('downgradeForm');
     if (downgradeForm) {
-        downgradeForm.addEventListener('submit', async function(e) {
+        downgradeForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            await handleDowngradeRequest();
+            const currentRole = document.getElementById('currentRole').value;
+            const message = document.getElementById('downgradeMessage').value.trim();
+            if (!currentRole) return showNotification('Выберите текущую роль', 'error');
+            if (message.length < 20) return showNotification('Опишите причину (мин. 20 символов)', 'error');
+            const btn = downgradeForm.querySelector('button[type="submit"]');
+            btn.disabled = true;
+            try {
+                await submitRoleRequest('REMOVE', 'USER', message);
+                closeDowngradeModal();
+                await loadUserRoleRequests();
+                showNotification('✅ Заявка на снятие роли отправлена', 'success');
+            } catch (err) {
+                showNotification(`❌ ${err.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+            }
         });
     }
 
-    // Закрытие модалок
-    const modals = document.querySelectorAll('.modal');
-    modals.forEach(modal => {
-        modal.addEventListener('click', function(e) {
-            if (e.target === this || e.target.classList.contains('modal-close')) {
-                this.style.display = 'none';
-                this.querySelector('form')?.reset();
-            }
-        });
-    });
-
-    // Закрытие по Escape
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            modals.forEach(modal => {
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal || e.target.classList.contains('modal-close')) {
                 modal.style.display = 'none';
-                modal.querySelector('form')?.reset();
-            });
+                const form = modal.querySelector('form');
+                if (form) form.reset();
+            }
+        });
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+    });
+}
+
+window.openRequestModal = (type) => {
+    const modal = document.getElementById('requestModal');
+    if (!modal) return;
+    const select = document.getElementById('requestRole');
+    const title = document.getElementById('requestModalTitle');
+    const roleSpan = document.getElementById('roleName');
+    if (type === 'seller') {
+        select.value = 'SELLER';
+        title.innerText = 'Заявка на роль продавца';
+        roleSpan.innerText = 'продавцом';
+    } else if (type === 'courier') {
+        select.value = 'COURIER';
+        title.innerText = 'Заявка на роль курьера';
+        roleSpan.innerText = 'курьером';
+    }
+    modal.style.display = 'flex';
+};
+window.closeRequestModal = () => {
+    const modal = document.getElementById('requestModal');
+    if (modal) modal.style.display = 'none';
+};
+window.openDowngradeModal = () => {
+    const modal = document.getElementById('downgradeModal');
+    if (modal) {
+        const currentRole = document.body.dataset.userRole;
+        const select = document.getElementById('currentRole');
+        if (currentRole && currentRole !== 'USER') {
+            select.value = currentRole;
+            select.disabled = true;
+        } else {
+            select.disabled = false;
+            select.value = '';
+        }
+        modal.style.display = 'flex';
+    }
+};
+window.closeDowngradeModal = () => {
+    const modal = document.getElementById('downgradeModal');
+    if (modal) modal.style.display = 'none';
+};
+
+// ============ Модальное окно для адреса ============
+let addressModal, map, marker;
+
+function initAddressModal() {
+    const modal = document.getElementById('addressModal');
+    const openBtn = document.getElementById('openAddressModalBtn');
+    const closeBtn = document.getElementById('closeAddressModalBtn');
+    const cancelBtn = document.getElementById('cancelAddressBtn');
+    const saveBtn = document.getElementById('saveAddressBtn');
+
+    if (!modal) return;
+
+    openBtn?.addEventListener('click', () => {
+        // Загружаем текущие данные из скрытых полей
+        const region = document.getElementById('profileRegion').value;
+        const city = document.getElementById('profileCity').value;
+        const street = document.getElementById('profileStreet').value;
+        const house = document.getElementById('profileHouse').value;
+        const apartment = document.getElementById('profileApartment').value;
+        const lat = parseFloat(document.getElementById('profileLat').value) || 55.751574;
+        const lon = parseFloat(document.getElementById('profileLon').value) || 37.573856;
+
+        document.getElementById('modalRegion').value = region;
+        document.getElementById('modalCity').value = city;
+        document.getElementById('modalStreet').value = street;
+        document.getElementById('modalHouse').value = house;
+        document.getElementById('modalApartment').value = apartment;
+        document.getElementById('modalLat').value = lat;
+        document.getElementById('modalLon').value = lon;
+
+        modal.style.display = 'flex';
+        if (!map) {
+            initModalMap(lat, lon);
+            initModalDadata();
+        } else {
+            map.setView([lat, lon], 15);
+            marker.setLatLng([lat, lon]);
         }
     });
 
-    // Обновление текста при выборе роли
-    const roleSelect = document.getElementById('requestRole');
-    if (roleSelect) {
-        roleSelect.addEventListener('change', function() {
-            const roleName = this.options[this.selectedIndex].text;
-            document.getElementById('roleName').textContent = roleName.toLowerCase();
-        });
-    }
-}
+    const closeModal = () => {
+        modal.style.display = 'none';
+    };
+    closeBtn?.addEventListener('click', closeModal);
+    cancelBtn?.addEventListener('click', closeModal);
 
-async function handleEnhanceRequest() {
-    const role = document.getElementById('requestRole').value;
-    const message = document.getElementById('requestMessage').value.trim();
+    saveBtn?.addEventListener('click', async () => {
+        const region = document.getElementById('modalRegion').value.trim();
+        const city = document.getElementById('modalCity').value.trim();
+        const street = document.getElementById('modalStreet').value.trim();
+        const house = document.getElementById('modalHouse').value.trim();
+        const apartment = document.getElementById('modalApartment').value.trim();
+        const lat = document.getElementById('modalLat').value;
+        const lon = document.getElementById('modalLon').value;
 
-    if (!role) {
-        showProfileNotification('Выберите роль', 'error');
-        return;
-    }
-
-    if (message.length < 20) {
-        showProfileNotification('Опишите причину подробнее (минимум 20 символов)', 'error');
-        return;
-    }
-
-    try {
-        const submitBtn = requestForm.querySelector('button[type="submit"]');
-        const originalText = submitBtn.innerHTML;
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = 'Отправка...';
-
-        await submitRoleRequest('ENHANCE', role, message);
-
-        closeRequestModal();
-
-    } catch (error) {
-        console.error('Ошибка отправки заявки:', error);
-        showProfileNotification(`❌ Ошибка: ${error.message}`, 'error');
-    } finally {
-        const submitBtn = requestForm.querySelector('button[type="submit"]');
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = 'Отправить заявку';
+        if (!city || !street) {
+            showNotification('Укажите город и улицу (выберите адрес на карте или из подсказок)', 'error');
+            return;
         }
-    }
-}
 
-async function handleDowngradeRequest() {
-    const currentRole = document.getElementById('currentRole').value;
-    const message = document.getElementById('downgradeMessage').value.trim();
+        const payload = {
+            region, city, street, house, apartment,
+            latitude: parseFloat(lat) || 0,
+            longitude: parseFloat(lon) || 0
+        };
 
-    if (!currentRole) {
-        showProfileNotification('Выберите текущую роль', 'error');
-        return;
-    }
-
-    if (message.length < 20) {
-        showProfileNotification('Опишите причину подробнее (минимум 20 символов)', 'error');
-        return;
-    }
-
-    try {
-        const submitBtn = downgradeForm.querySelector('button[type="submit"]');
-        const originalText = submitBtn.innerHTML;
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = 'Отправка...';
-
-        // При downgrade requestedRole = USER
-        await submitRoleRequest('REMOVE', 'USER', message);
-
-        closeDowngradeModal();
-
-    } catch (error) {
-        console.error('Ошибка отправки заявки:', error);
-        showProfileNotification(`❌ Ошибка: ${error.message}`, 'error');
-    } finally {
-        const submitBtn = downgradeForm.querySelector('button[type="submit"]');
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = 'Отправить заявку';
-        }
-    }
-}
-
-// ============ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ============
-
-function hideOrdersSection() {
-    const ordersSection = document.querySelector('.orders-history');
-    if (ordersSection) {
-        ordersSection.style.display = 'none';
-    }
-}
-
-function getRoleText(role) {
-    return ROLE_MAP[role]?.text || role;
-}
-
-function formatDate(dateString) {
-    if (!dateString) return 'Не указана';
-
-    try {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('ru-RU', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-    } catch (e) {
-        return dateString;
-    }
-}
-
-// ============ КЭШИРОВАНИЕ ============
-
-function saveProfileToCache(profile) {
-    try {
-        localStorage.setItem('userProfileCache', JSON.stringify({
-            ...profile,
-            cachedAt: new Date().toISOString()
-        }));
-    } catch (e) {
-        console.warn('Не удалось сохранить в кэш:', e);
-    }
-}
-
-function loadProfileFromCache() {
-    try {
-        const cached = localStorage.getItem('userProfileCache');
-        if (cached) {
-            const data = JSON.parse(cached);
-
-            // Проверяем свежесть кэша (24 часа)
-            const cachedAt = new Date(data.cachedAt);
-            const now = new Date();
-            const hoursDiff = (now - cachedAt) / (1000 * 60 * 60);
-
-            if (hoursDiff < 24) {
-                return data;
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Сохранение...';
+        try {
+            const response = await fetch(API.profile, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                credentials: 'include'
+            });
+            if (response.ok) {
+                showNotification('✅ Адрес обновлён', 'success');
+                // Обновляем скрытые поля на главной
+                document.getElementById('profileRegion').value = region;
+                document.getElementById('profileCity').value = city;
+                document.getElementById('profileStreet').value = street;
+                document.getElementById('profileHouse').value = house;
+                document.getElementById('profileApartment').value = apartment;
+                document.getElementById('profileLat').value = lat;
+                document.getElementById('profileLon').value = lon;
+                // Обновляем отображение адреса
+                const regionClean = cleanRegionName(region);
+                const addressString = [regionClean, city, street, house].filter(Boolean).join(', ') || 'Не указан';
+                document.getElementById('currentAddressDisplay').textContent = addressString;
+                closeModal();
+            } else {
+                const err = await response.text();
+                throw new Error(err || 'Ошибка сервера');
             }
+        } catch (err) {
+            showNotification(`❌ ${err.message}`, 'error');
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Сохранить адрес';
         }
-    } catch (e) {
-        console.warn('Не удалось загрузить из кэша:', e);
-    }
-    return null;
+    });
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
 }
 
-// ============ UI КОМПОНЕНТЫ ============
+function initModalMap(lat, lon, zoom = 15) {
+    const container = document.getElementById('modalMap');
+    if (!container) return;
+    if (map) map.remove();
 
+    map = L.map('modalMap').setView([lat, lon], zoom);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 19
+    }).addTo(map);
+
+    const icon = L.icon({
+        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41]
+    });
+    marker = L.marker([lat, lon], { draggable: true, icon }).addTo(map);
+
+    marker.on('dragend', async () => {
+        const pos = marker.getLatLng();
+        document.getElementById('modalLat').value = pos.lat;
+        document.getElementById('modalLon').value = pos.lng;
+        try {
+            const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.lat}&lon=${pos.lng}&addressdetails=1&accept-language=ru`);
+            const data = await resp.json();
+            if (data && data.address) {
+                const a = data.address;
+                const regionRaw = a.state || a.region || '';
+                document.getElementById('modalRegion').value = cleanRegionName(regionRaw);
+                document.getElementById('modalCity').value = a.city || a.town || a.village || '';
+                document.getElementById('modalStreet').value = a.road || '';
+                document.getElementById('modalHouse').value = a.house_number || '';
+            }
+        } catch (err) { console.error('Reverse geocoding error:', err); }
+    });
+}
+
+function initModalDadata() {
+    const input = document.getElementById('modalAddressAutocomplete');
+    if (!input) return;
+
+    let timeoutId;
+    input.addEventListener('input', function() {
+        clearTimeout(timeoutId);
+        const query = this.value.trim();
+        if (query.length < 3) return;
+        timeoutId = setTimeout(() => fetchSuggestions(query), 300);
+    });
+
+    async function fetchSuggestions(query) {
+        try {
+            const response = await fetch('https://suggestions.dadata.ru/suggestions/api/4_1/rs/suggest/address', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'Authorization': 'Token ' + DADATA_TOKEN
+                },
+                body: JSON.stringify({ query, count: 8 })
+            });
+            if (!response.ok) {
+                if (response.status === 403) showNotification('Ошибка DaData: проверьте API-ключ', 'error');
+                return;
+            }
+            const data = await response.json();
+            if (data.suggestions) showSuggestionsDropdown(data.suggestions);
+        } catch (err) { console.error(err); }
+    }
+
+    function showSuggestionsDropdown(suggestions) {
+        let dropdown = document.getElementById('dadata-modal-dropdown');
+        if (!dropdown) {
+            dropdown = document.createElement('div');
+            dropdown.id = 'dadata-modal-dropdown';
+            dropdown.style.cssText = `
+                position: absolute;
+                background: white;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                max-height: 200px;
+                overflow-y: auto;
+                z-index: 1001;
+                width: ${input.offsetWidth}px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            `;
+            input.parentNode.style.position = 'relative';
+            input.parentNode.appendChild(dropdown);
+        }
+        dropdown.innerHTML = '';
+        suggestions.forEach(sug => {
+            const item = document.createElement('div');
+            item.textContent = sug.value;
+            item.style.cssText = 'padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #eee;';
+            item.addEventListener('click', () => {
+                input.value = sug.value;
+                dropdown.style.display = 'none';
+                const data = sug.data;
+                const regionRaw = data.region_with_type || '';
+                document.getElementById('modalRegion').value = cleanRegionName(regionRaw);
+                document.getElementById('modalCity').value = data.city || data.settlement || '';
+                document.getElementById('modalStreet').value = data.street_with_type || '';
+                document.getElementById('modalHouse').value = data.house || '';
+                const lat = data.geo_lat, lon = data.geo_lon;
+                if (lat && lon && map && marker) {
+                    const newLat = parseFloat(lat);
+                    const newLon = parseFloat(lon);
+                    map.setView([newLat, newLon], 16);
+                    marker.setLatLng([newLat, newLon]);
+                    document.getElementById('modalLat').value = newLat;
+                    document.getElementById('modalLon').value = newLon;
+                }
+                document.getElementById('modalHouse').focus();
+            });
+            dropdown.appendChild(item);
+        });
+        dropdown.style.display = 'block';
+        const closeHandler = (e) => {
+            if (!dropdown.contains(e.target) && e.target !== input) {
+                dropdown.style.display = 'none';
+                document.removeEventListener('click', closeHandler);
+            }
+        };
+        setTimeout(() => document.addEventListener('click', closeHandler), 100);
+    }
+}
+
+// ============ Вспомогательные функции ============
 function initTabs() {
-    const tabButtons = document.querySelectorAll('.tab-button');
-
-    tabButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const tabId = this.getAttribute('data-tab');
-
-            tabButtons.forEach(btn => btn.classList.remove('active'));
+    const tabs = document.querySelectorAll('.tab-button');
+    tabs.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tabId = btn.dataset.tab;
+            tabs.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
             document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
-
-            this.classList.add('active');
             document.getElementById(`${tabId}-tab`).classList.add('active');
         });
     });
 }
 
-function showProfileNotification(message, type = 'success') {
-    const notification = document.createElement('div');
-    notification.className = `profile-notification ${type}`;
-
-    const icon = type === 'success' ? '✅' :
-        type === 'warning' ? '⚠️' : '❌';
-
-    const bgColor = type === 'success' ? '#28a745' :
-        type === 'warning' ? '#ffc107' : '#dc3545';
-
-    const textColor = type === 'warning' ? '#212529' : 'white';
-
-    notification.innerHTML = `
-        <div class="notification-content">
-            <span class="notification-icon">${icon}</span>
-            <span class="notification-text">${message}</span>
-        </div>
-    `;
-
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: ${bgColor};
-        color: ${textColor};
-        padding: 15px 20px;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        z-index: 9999;
-        animation: slideIn 0.3s ease;
-    `;
-
-    document.body.appendChild(notification);
-
-    setTimeout(() => {
-        notification.style.animation = 'slideOut 0.3s ease';
-        setTimeout(() => notification.remove(), 300);
-    }, 3000);
+function hideOrdersSection() {
+    const ordersSection = document.querySelector('.orders-history');
+    if (ordersSection) ordersSection.style.display = 'none';
 }
 
-// ============ ГЛОБАЛЬНЫЕ ФУНКЦИИ ============
+function formatDate(dateStr) {
+    if (!dateStr) return 'не указана';
+    try { return new Date(dateStr).toLocaleString('ru-RU', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }); }
+    catch { return dateStr; }
+}
 
-window.openRequestModal = function(type) {
-    const modal = document.getElementById('requestModal');
-    if (!modal) return;
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, (m) => m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;'));
+}
 
-    const roleSelect = document.getElementById('requestRole');
-    const roleNameSpan = document.getElementById('roleName');
-    const title = document.getElementById('requestModalTitle');
-
-    if (type === 'seller') {
-        roleSelect.value = 'SELLER';
-        roleNameSpan.textContent = 'продавцом';
-        title.textContent = 'Заявка на роль продавца';
-    } else if (type === 'courier') {
-        roleSelect.value = 'COURIER';
-        roleNameSpan.textContent = 'курьером';
-        title.textContent = 'Заявка на роль курьера';
-    }
-
-    modal.style.display = 'flex';
-};
-
-window.closeRequestModal = function() {
-    const modal = document.getElementById('requestModal');
-    if (modal) {
-        modal.style.display = 'none';
-        modal.querySelector('form').reset();
-        document.getElementById('charCount').textContent = '0';
-    }
-};
-
-window.openDowngradeModal = function() {
-    const modal = document.getElementById('downgradeModal');
-    if (!modal) return;
-
-    // Автоматически заполняем текущую роль пользователя
-    const currentRole = document.body.dataset.userRole || 'USER';
-    const roleSelect = document.getElementById('currentRole');
-
-    if (roleSelect && currentRole !== 'USER') {
-        roleSelect.value = currentRole;
-        roleSelect.disabled = true;
-    }
-
-    modal.style.display = 'flex';
-};
-
-window.closeDowngradeModal = function() {
-    const modal = document.getElementById('downgradeModal');
-    if (modal) {
-        modal.style.display = 'none';
-        modal.querySelector('form').reset();
-        document.getElementById('downgradeCharCount').textContent = '0';
-
-        // Разблокируем select
-        const roleSelect = document.getElementById('currentRole');
-        if (roleSelect) roleSelect.disabled = false;
-    }
-};
-
-// ============ CSS СТИЛИ ============
-
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes slideIn {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-    }
-    
-    @keyframes slideOut {
-        from { transform: translateX(0); opacity: 1; }
-        to { transform: translateX(100%); opacity: 0; }
-    }
-    
-    .user-role-display {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        padding: 4px 8px;
-        background: #f0f0f0;
-        border-radius: 4px;
-        font-size: 12px;
-        margin-left: 10px;
-    }
-    
-    .request-item {
-        border: 1px solid #e0e0e0;
-        border-radius: 8px;
-        padding: 15px;
-        margin-bottom: 15px;
-        background: white;
-    }
-    
-    .request-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 10px;
-    }
-    
-    .request-action {
-        font-weight: bold;
-    }
-    
-    .request-role {
-        background: #667eea;
-        color: white;
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-    }
-    
-    .request-date {
-        color: #666;
-        font-size: 12px;
-    }
-    
-    .request-message {
-        color: #333;
-        margin-bottom: 10px;
-        line-height: 1.5;
-    }
-    
-    .request-footer {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 12px;
-    }
-    
-    .request-status {
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-weight: bold;
-    }
-    
-    .status-pending {
-        background: #fff3cd;
-        color: #856404;
-    }
-    
-    .status-approved {
-        background: #d4edda;
-        color: #155724;
-    }
-    
-    .status-rejected {
-        background: #f8d7da;
-        color: #721c24;
-    }
-    
-    .no-requests {
-        text-align: center;
-        padding: 40px 20px;
-        color: #666;
-    }
-    
-    .no-requests-icon {
-        font-size: 48px;
-        margin-bottom: 15px;
-    }
-    
-    .no-requests-hint {
-        font-size: 14px;
-        margin-top: 10px;
-        color: #999;
-    }
-    
-    input:disabled, textarea:disabled {
-        background-color: #f8f9fa;
-        cursor: not-allowed;
-    }
-`;
-document.head.appendChild(style);
+function showNotification(msg, type = 'success') {
+    const notif = document.createElement('div');
+    notif.className = `profile-notification ${type}`;
+    notif.innerHTML = `<span>${type === 'success' ? '✅' : type === 'error' ? '❌' : '⚠️'} ${msg}</span>`;
+    document.body.appendChild(notif);
+    setTimeout(() => {
+        notif.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => notif.remove(), 300);
+    }, 3000);
+}

@@ -22,6 +22,7 @@ import org.example.authservice.kafka.NotifyKafkaProducer;
 import org.example.kafkaEvent.CartRegisterEvent;
 import org.example.kafkaEvent.NotifyEvent;
 import org.example.kafkaEvent.NotifyType;
+import org.example.kafkaEvent.UserRegisterEvent;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -95,7 +96,10 @@ public class RegistrationManager {
             validateVerifyRegistration(data, request);
 
             UserEntity savedUser = createUser(data);
+
             kafkaProducer.sendMessageToKafkaCart(new CartRegisterEvent(savedUser.getId()));
+            kafkaProducer.sendMessageToKafkaUser(new UserRegisterEvent(savedUser.getId(),savedUser.getEmail(),savedUser.getName()));
+
             TokenResponse tokens = tokenManagementManager.createTokenPair(
                     savedUser.getEmail(), savedUser.getRole(), savedUser.getId(),response);
             addToSpringSecurityContext(savedUser.getEmail());

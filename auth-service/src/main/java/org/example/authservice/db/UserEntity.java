@@ -30,6 +30,6 @@ public class UserEntity {
     private Role role;
 
     @Column(name = "address")
-    private String address;
+    private String address;//TODO удалить
 
 }

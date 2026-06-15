@@ -3,17 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мой профиль – Kortex marketplace</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="css/mainFormStyle.css">
     <link rel="stylesheet" href="css/profileStyle.css">
-    <title>Профиль</title>
+    <style>
+        /* Дополнительные стили */
+        #modalMap { height: 350px; width: 100%; border-radius: 8px; margin-top: 8px; }
+        .current-address {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #333;
+        }
+        .modal-content { max-width: 800px; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+        .address-details { background: #f9f9f9; padding: 15px; border-radius: 8px; margin-top: 15px; }
+        .profile-notification { position: fixed; top: 20px; right: 20px; padding: 15px 20px; border-radius: 8px; z-index: 9999; animation: slideIn 0.3s ease; }
+        .profile-notification.success { background: #28a745; color: white; }
+        .profile-notification.error { background: #dc3545; color: white; }
+        .profile-notification.warning { background: #ffc107; color: #212529; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+        .request-item { border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; margin-bottom: 15px; background: white; }
+        .request-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .request-role { background: #667eea; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+        .request-date { color: #666; font-size: 12px; }
+        .request-status { padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; }
+        .status-pending { background: #fff3cd; color: #856404; }
+        .status-approved { background: #d4edda; color: #155724; }
+        .status-rejected { background: #f8d7da; color: #721c24; }
+        .no-requests { text-align: center; padding: 40px; color: #666; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: white; border-radius: 12px; width: 500px; max-width: 90%; background: white; border-radius: 12px; width: 90%; max-width: 800px; }
+        .modal-header { padding: 15px 20px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; }
+        .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; }
+        .modal-body { padding: 20px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 500; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; }
+        .form-textarea { min-height: 100px; resize: vertical; }
+        .char-counter { font-size: 12px; color: #666; text-align: right; margin-top: 5px; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+        .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .tab-button.active { background: #667eea; color: white; }
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
+    </style>
 </head>
 <body>
-<!--Шапка страницы-->
+
+<!-- Шапка (ваша) -->
 <header class="header">
     <div class="container">
         <div class="header-content">
             <a href="/" class="logo">Kortex marketplace</a>
-
             <form class="search-form" action="/search" method="GET">
                 <div class="search-container">
                     <input id="search-input" type="text" class="search-input" placeholder="Поиск товаров...">
@@ -22,22 +69,10 @@
                     </button>
                 </div>
             </form>
-
             <nav class="nav">
-                <a href="/cart" class="nav-link">
-                    <img src="images/cart-img.png" alt="Корзина" class="nav-icon">
-                    Корзина
-                </a>
-
-                <a href="/profile" class="nav-link">
-                    <img src="images/profile-img.png" alt="Профиль" class="nav-icon profile-icon">
-                    <span class="profile-text">Профиль</span>
-                </a>
-
-                <a href="/login" class="nav-link">
-                    <img src="images/join-img.png" alt="Войти" class="nav-icon">
-                    Войти
-                </a>
+                <a href="/cart" class="nav-link"><img src="images/cart-img.png" alt="Корзина" class="nav-icon"> Корзина</a>
+                <a href="/profile" class="nav-link"><img src="images/profile-img.png" alt="Профиль" class="nav-icon profile-icon"> Профиль</a>
+                <a href="/login" class="nav-link"><img src="images/join-img.png" alt="Войти" class="nav-icon"> Войти</a>
             </nav>
         </div>
     </div>
@@ -45,39 +80,17 @@
 
 <!-- Основной контент профиля -->
 <div class="profile-container">
-    <div class="profile-header">
-        <h1>Мой профиль</h1>
-    </div>
-
+    <div class="profile-header"><h1>Мой профиль</h1></div>
     <div class="profile-content">
         <!-- Боковая панель -->
         <div class="profile-sidebar">
-            <!--<img src="images/avatar.jpg" alt="Аватар" class="profile-avatar">-->
-            <h2 class="profile-name">Иван Иванов</h2>
-            <p class="profile-email">ivan@example.com</p>
-
-            <div class="profile-stats">
-                <div class="stat-item">
-                    <span class="stat-value">0</span>
-                    <span class="stat-label">Заказов</span>
-                </div>
-            </div>
-
-            <!-- Кнопки для разных ролей -->
-            <div class="role-buttons">
-                <a href="/seller" class="btn btn-seller" style="width: 100%; margin-bottom: 10px;">
-                    🏪 Для продавца
-                </a>
-                <a href="/courier" class="btn btn-courier" style="width: 100%; margin-bottom: 10px;">
-                    🚚 Для курьера
-                </a>
-                <a href="/admin" class="btn btn-admin" style="width: 100%;">
-                    ⚙️ Для админа
-                </a>
-            </div>
+            <h2 class="profile-name">Загрузка...</h2>
+            <p class="profile-email"></p>
+            <div class="profile-stats"><div class="stat-item"><span class="stat-value">0</span><span class="stat-label">Заказов</span></div></div>
+            <div class="role-buttons"></div>
         </div>
 
-        <!-- Основной контент -->
+        <!-- Основная часть с вкладками -->
         <div class="profile-main">
             <div class="profile-tabs">
                 <button class="tab-button active" data-tab="personal">Личная информация</button>
@@ -85,154 +98,119 @@
                 <button class="tab-button" data-tab="requests">Заявки на роли</button>
             </div>
 
-            <!-- Контент вкладок -->
             <div class="tab-content">
-                <!-- Вкладка личной информации -->
+                <!-- Вкладка "Личная информация" -->
                 <div id="personal-tab" class="tab-pane active">
                     <form class="profile-form" id="personalForm">
                         <div class="form-group">
                             <label>Имя</label>
-                            <input type="text" name="name" id="profileName" placeholder="Иван" required>
+                            <input type="text" id="profileName" required>
                         </div>
-
                         <div class="form-group">
                             <label>Email</label>
-                            <input type="email" name="email" id="profileEmail" placeholder="ivan@example.com" required>
+                            <input type="email" id="profileEmail" required>
                         </div>
-
                         <div class="form-group">
-                            <label>Адрес</label>
-                            <input type="text" name="address" id="profileAddress" placeholder="Введите адрес" required>
+                            <label>Текущий адрес</label>
+                            <div class="current-address" id="currentAddressDisplay">Не указан</div>
+                            <button type="button" class="btn btn-secondary" id="openAddressModalBtn" style="margin-top: 8px;">✏️ Изменить адрес</button>
                         </div>
-
-                        <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+                        <button type="submit" class="btn btn-primary">Сохранить имя и email</button>
                     </form>
+                    <!-- Скрытые поля для хранения адреса (используются модалкой) -->
+                    <input type="hidden" id="profileRegion">
+                    <input type="hidden" id="profileCity">
+                    <input type="hidden" id="profileStreet">
+                    <input type="hidden" id="profileHouse">
+                    <input type="hidden" id="profileApartment">
+                    <input type="hidden" id="profileLat">
+                    <input type="hidden" id="profileLon">
                 </div>
 
-                <!-- Вкладка настроек -->
+                <!-- Вкладка "Настройки" -->
                 <div id="settings-tab" class="tab-pane">
-                    <form class="profile-form" id="settingsForm">
-                        <div class="form-group">
-                            <!--
-                            <label>Смена аватарки</label>
-                            <div class="avatar-upload">
-                                <div class="avatar-preview">
-                                    <img src="images/avatar.jpg" alt="Аватар" id="avatarPreview" class="avatar-preview-img">
-                                </div>
-                                <div class="avatar-controls">
-                                    <input type="file" id="avatarInput" accept="image/*" class="file-input">
-                                    <label for="avatarInput" class="btn btn-choose-image">Выбрать изображение</label>
-                                    <button type="button" id="removeAvatar" class="btn btn-remove">Удалить аватар</button>
-                                </div>
-                            </div>
-                            -->
-                        </div>
-
-
-
-                        <!--<button type="submit" class="btn btn-primary">Сохранить настройки</button>-->
-                    </form>
+                    <p>Настройки уведомлений и смена пароля будут здесь позже.</p>
                 </div>
 
-                <!-- Вкладка заявок на роли -->
+                <!-- Вкладка "Заявки на роли" -->
                 <div id="requests-tab" class="tab-pane">
                     <div class="requests-section">
-                        <h2 class="requests-title">Подать заявку на изменение роли</h2>
-                        <p class="requests-subtitle">Выберите тип заявки и заполните форму</p>
-
+                        <h2>Подать заявку на изменение роли</h2>
                         <div class="requests-buttons-grid">
-                            <div class="request-card">
-                                <div class="request-icon">🚀</div>
-                                <h3>Стать продавцом</h3>
-                                <p>Получите возможность продавать товары на нашей платформе</p>
-                                <button class="btn btn-primary" onclick="openRequestModal('seller')">
-                                    📝 Подать заявку
-                                </button>
-                            </div>
-
-                            <div class="request-card">
-                                <div class="request-icon">🚚</div>
-                                <h3>Стать курьером</h3>
-                                <p>Начните зарабатывать на доставке товаров</p>
-                                <button class="btn btn-primary" onclick="openRequestModal('courier')">
-                                    📝 Подать заявку
-                                </button>
-                            </div>
-
-                            <div class="request-card">
-                                <div class="request-icon">⬇️</div>
-                                <h3>Сняться с роли</h3>
-                                <p>Вернуться к роли обычного покупателя</p>
-                                <button class="btn btn-secondary" onclick="openDowngradeModal()">
-                                    📝 Подать заявку
-                                </button>
-                            </div>
+                            <div class="request-card"><div class="request-icon">🚀</div><h3>Стать продавцом</h3><button class="btn btn-primary" onclick="openRequestModal('seller')">📝 Подать заявку</button></div>
+                            <div class="request-card"><div class="request-icon">🚚</div><h3>Стать курьером</h3><button class="btn btn-primary" onclick="openRequestModal('courier')">📝 Подать заявку</button></div>
+                            <div class="request-card"><div class="request-icon">⬇️</div><h3>Сняться с роли</h3><button class="btn btn-secondary" onclick="openDowngradeModal()">📝 Подать заявку</button></div>
                         </div>
-
-                        <!-- История заявок -->
-                        <div class="requests-history" id="requestsHistory">
-                            <h3>Мои заявки</h3>
-                            <div class="requests-list" id="requestsList">
-                                <!-- Заявки будут загружаться через JavaScript -->
-                                <div class="no-requests">
-                                    <p>У вас еще нет отправленных заявок</p>
-                                </div>
-                            </div>
-                        </div>
+                        <div class="requests-history"><h3>Мои заявки</h3><div id="requestsList" class="requests-list"><div class="no-requests">Загрузка...</div></div></div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- История заказов -->
-    <div class="orders-history">
-        <h2>История заказов</h2>
-
-        <div class="orders-grid" id="ordersGrid">
-            <!-- История заказов будет загружаться через JavaScript -->
+<!-- Модальное окно для изменения адреса -->
+<div id="addressModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Редактирование адреса</h3>
+            <button class="modal-close" id="closeAddressModalBtn">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Адрес (начните вводить)</label>
+                <input type="text" id="modalAddressAutocomplete" class="suggestions-input" placeholder="Введите город, улицу...">
+            </div>
+            <input type="hidden" id="modalLat">
+            <input type="hidden" id="modalLon">
+            <div class="address-details">
+                <div class="form-row">
+                    <div class="form-group"><label>Регион</label><input type="text" id="modalRegion" readonly></div>
+                    <div class="form-group"><label>Город</label><input type="text" id="modalCity" readonly></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>Улица</label><input type="text" id="modalStreet" readonly></div>
+                    <div class="form-group"><label>Дом</label><input type="text" id="modalHouse" placeholder="Номер дома"></div>
+                </div>
+                <div class="form-group"><label>Квартира / офис</label><input type="text" id="modalApartment" placeholder="Необязательно"></div>
+            </div>
+            <div class="form-group">
+                <label>Позиция на карте</label>
+                <div id="modalMap"></div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="cancelAddressBtn">Отмена</button>
+                <button type="button" class="btn btn-primary" id="saveAddressBtn">Сохранить адрес</button>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Модальное окно для подачи заявки -->
-<div class="modal" id="requestModal">
+<!-- Модальное окно для заявки на повышение -->
+<div id="requestModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
             <h3 id="requestModalTitle">Подача заявки</h3>
             <button class="modal-close" onclick="closeRequestModal()">×</button>
         </div>
-
         <div class="modal-body">
             <form id="requestForm">
                 <div class="form-group">
                     <label>Выберите роль</label>
-                    <select id="requestRole" class="form-select" required>
+                    <select id="requestRole" required>
                         <option value="" disabled selected>Выберите роль</option>
                         <option value="SELLER">Продавец</option>
                         <option value="COURIER">Курьер</option>
                     </select>
                 </div>
-
                 <div class="form-group">
-                    <label for="requestMessage">Опишите, почему вы хотите стать <span id="roleName">...</span></label>
-                    <textarea id="requestMessage"
-                              class="form-textarea"
-                              placeholder="Расскажите о вашем опыте, мотивации и планах..."
-                              maxlength="500"
-                              required></textarea>
-                    <div class="char-counter">
-                        <span id="charCount">0</span> / 500 символов
-                    </div>
+                    <label>Опишите, почему вы хотите стать <span id="roleName">...</span></label>
+                    <textarea id="requestMessage" class="form-textarea" maxlength="500" required></textarea>
+                    <div class="char-counter"><span id="charCount">0</span>/500</div>
                 </div>
-
                 <div class="modal-actions">
-                    <button type="button" class="btn btn-secondary" onclick="closeRequestModal()">
-                        Отмена
-                    </button>
-                    <button type="submit" class="btn btn-primary">
-                        Отправить заявку
-                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="closeRequestModal()">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Отправить</button>
                 </div>
             </form>
         </div>
@@ -240,52 +218,37 @@
 </div>
 
 <!-- Модальное окно для снятия роли -->
-<div class="modal" id="downgradeModal">
+<div id="downgradeModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
             <h3>Заявка на снятие с роли</h3>
             <button class="modal-close" onclick="closeDowngradeModal()">×</button>
         </div>
-
         <div class="modal-body">
             <form id="downgradeForm">
                 <div class="form-group">
                     <label>Текущая роль</label>
-                    <select id="currentRole" class="form-select" required>
-                        <option value="" disabled selected>Выберите текущую роль</option>
+                    <select id="currentRole" required>
+                        <option value="" disabled selected>Выберите роль</option>
                         <option value="SELLER">Продавец</option>
                         <option value="COURIER">Курьер</option>
                     </select>
                 </div>
-
                 <div class="form-group">
-                    <label for="downgradeMessage">Опишите причину снятия с роли</label>
-                    <textarea id="downgradeMessage"
-                              class="form-textarea"
-                              placeholder="Пожалуйста, объясните, почему вы хотите вернуться к роли покупателя..."
-                              maxlength="500"
-                              required></textarea>
-                    <div class="char-counter">
-                        <span id="downgradeCharCount">0</span> / 500 символов
-                    </div>
+                    <label>Причина снятия</label>
+                    <textarea id="downgradeMessage" class="form-textarea" maxlength="500" required></textarea>
+                    <div class="char-counter"><span id="downgradeCharCount">0</span>/500</div>
                 </div>
-
                 <div class="modal-actions">
-                    <button type="button" class="btn btn-secondary" onclick="closeDowngradeModal()">
-                        Отмена
-                    </button>
-                    <button type="submit" class="btn btn-primary">
-                        Отправить заявку
-                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="closeDowngradeModal()">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Отправить</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<script src="js/productManager.js"></script>
-<script src="js/imageUploader.js"></script>
-<script src="js/cartManager.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="js/profileScript.js"></script>
 </body>
 </html>

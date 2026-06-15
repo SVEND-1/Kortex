@@ -146,8 +146,8 @@ public class ProductService {
     }
 
     @Transactional
-    public void deleted(Long id) {
-        try {
+    public void deleted(Long id) {//TODO надо добавить когда удаляется продукт из корзины все удалялось ,а лучше сделать статус для продуктов ,а не удалять его
+        try {//TODO надо изображение чтобы не в корне сохранялись
             ProductEntity product = getByIdEntity(id);
             productRepository.deleteById(id);
             productImageService.deleteImages(product.getImages());

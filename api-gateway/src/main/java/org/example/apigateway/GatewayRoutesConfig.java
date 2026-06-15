@@ -18,6 +18,11 @@ public class GatewayRoutesConfig {
                         .filters(f -> f.stripPrefix(0))
                         .uri("http://localhost:8081"))
 
+                .route("user-service", r -> r
+                        .path("/api/users/**")
+                        .filters(f -> f.stripPrefix(0))
+                        .uri("http://localhost:8090"))
+
                 // ── Product Service ───────────────────────────────────────
                 .route("product-service", r -> r
                         .path("/api/products/**")
@@ -89,17 +94,6 @@ public class GatewayRoutesConfig {
                         .filters(f -> f.stripPrefix(0))
                         .uri("http://localhost:8080"))
 
-                // ВНИМАНИЕ: fallback убран намеренно.
-                // Неизвестные пути будут возвращать 404 от Gateway — это правильно.
-                // Если нужен fallback-контроллер, добавь его прямо в Gateway:
-                //
-                // @RestController
-                // public class FallbackController {
-                //     @RequestMapping("/api/fallback")
-                //     public ResponseEntity<?> fallback() {
-                //         return ResponseEntity.status(404).body(Map.of("error", "Not found"));
-                //     }
-                // }
 
                 .build();
     }
