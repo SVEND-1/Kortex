@@ -1,6 +1,6 @@
 package org.example.userservice.api.dto.response;
 
-import org.example.userservice.db.Role;
+import org.example.kafkaEvent.Role;
 
 public record UserRestResponse(
         String name,

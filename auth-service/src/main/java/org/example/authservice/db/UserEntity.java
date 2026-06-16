@@ -2,6 +2,7 @@ package org.example.authservice.db;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.example.kafkaEvent.Role;
 
 @Setter
 @Getter

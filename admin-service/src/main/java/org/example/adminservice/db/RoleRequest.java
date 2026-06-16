@@ -3,6 +3,7 @@ package org.example.adminservice.db;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.example.kafkaEvent.Role;
 
 import java.time.LocalDateTime;
 

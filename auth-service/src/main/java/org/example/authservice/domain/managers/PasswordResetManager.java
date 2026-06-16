@@ -16,9 +16,10 @@ import org.example.authservice.domain.VerificationCodeGenerator;
 import org.example.authservice.domain.exception.InvalidResetRequestException;
 import org.example.authservice.domain.exception.InvalidVerificationCodeException;
 import org.example.authservice.domain.exception.PasswordsDoNotMatchException;
-import org.example.authservice.kafka.NotifyKafkaProducer;
+import org.example.authservice.kafka.KafkaProducer;
 import org.example.kafkaEvent.NotifyEvent;
 import org.example.kafkaEvent.NotifyType;
+import org.example.kafkaEvent.Role;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -38,7 +39,7 @@ import java.util.UUID;
 public class PasswordResetManager {
 
     private final UserRepository userRepository;
-    private final NotifyKafkaProducer kafkaProducer;
+    private final KafkaProducer kafkaProducer;
     private final PasswordEncoder passwordEncoder;
     private final TokenManagementManager tokenManagementManager;
     private final VerificationCodeGenerator verificationCodeGenerator;
@@ -137,7 +138,7 @@ public class PasswordResetManager {
     }
 
     private void updateSpringContext(UserEntity savedUser) {
-        Set<SimpleGrantedAuthority> roles = Collections.singleton(savedUser.getRole().toAuthority());
+        Set<SimpleGrantedAuthority> roles = Collections.singleton(toAuthority(savedUser.getRole()));
         Authentication authentication = new UsernamePasswordAuthenticationToken(
                 savedUser.getEmail(), null, roles);
         SecurityContextHolder.getContext().setAuthentication(authentication);
@@ -151,5 +152,9 @@ public class PasswordResetManager {
                 NotifyType.PASSWORD_RESET
         );
         kafkaProducer.sendMessageToKafka(notifyEvent);
+    }
+
+    public SimpleGrantedAuthority toAuthority(Role role) {
+        return new SimpleGrantedAuthority("ROLE_" + role.name());
     }
 }

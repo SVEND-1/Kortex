@@ -2,6 +2,7 @@ package org.example.userservice.db;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.example.kafkaEvent.Role;
 
 @NoArgsConstructor
 @AllArgsConstructor

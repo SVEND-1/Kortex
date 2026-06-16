@@ -6,6 +6,7 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.example.kafkaEvent.NotifyEvent;
+import org.example.kafkaEvent.RoleUpdateEvent;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -46,5 +47,37 @@ public class KafkaConfig {
             ProducerFactory<String, Object> producerFactory
     ) {
         return new KafkaTemplate<>(producerFactory);
+    }
+
+
+    @Bean
+    public ConsumerFactory<String, RoleUpdateEvent> roleUpdateConsumerFactory(
+            ObjectMapper objectMapper
+    ) {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, "admin-group");
+
+        JsonDeserializer<RoleUpdateEvent> deserializer =
+                new JsonDeserializer<>(RoleUpdateEvent.class, objectMapper);
+        deserializer.addTrustedPackages("*");
+
+        return new DefaultKafkaConsumerFactory<>(
+                props,
+                new StringDeserializer(),
+                deserializer
+        );
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, RoleUpdateEvent>
+    roleUpdateKafkaListenerContainerFactory(
+            ConsumerFactory<String, RoleUpdateEvent> consumerFactory
+    ) {
+        ConcurrentKafkaListenerContainerFactory<String, RoleUpdateEvent> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(consumerFactory);
+        factory.setConcurrency(1);
+        return factory;
     }
 }

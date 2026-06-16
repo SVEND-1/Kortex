@@ -56,4 +56,5 @@ public class AuthService {
     public LoginResponse resetPassword(ResetPasswordRequest request, HttpServletResponse response) {
         return passwordResetManager.resetPassword(request,response);
     }
+
 }

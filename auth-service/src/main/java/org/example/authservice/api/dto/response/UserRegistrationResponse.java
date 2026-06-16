@@ -1,7 +1,6 @@
 package org.example.authservice.api.dto.response;
 
-
-import org.example.authservice.db.Role;
+import org.example.kafkaEvent.Role;
 
 public record UserRegistrationResponse(
         Long id,

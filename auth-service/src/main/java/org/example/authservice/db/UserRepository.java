@@ -12,4 +12,6 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
 
     @Query("SELECT DISTINCT u FROM UserEntity u WHERE u.email = LOWER(:email)")
     Optional<UserEntity> findByEmailEqualsIgnoreCase(@Param("email") String email);
+
+    UserEntity getUserEntityById(Long id);
 }

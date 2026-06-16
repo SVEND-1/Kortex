@@ -1,5 +1,6 @@
 package org.example.authservice.kafka;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.kafkaEvent.CartRegisterEvent;
 import org.example.kafkaEvent.NotifyEvent;
@@ -7,18 +8,15 @@ import org.example.kafkaEvent.UserRegisterEvent;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
+@RequiredArgsConstructor
 @Slf4j
 @Service
-public class NotifyKafkaProducer {
+public class KafkaProducer {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private static final String TOPIC_AUTH = "notification-service";
     private static final String TOPIC_CART = "cart-service";
     private static final String TOPIC_USER = "user-service";
-
-    public NotifyKafkaProducer(KafkaTemplate<String, Object> kafkaTemplate) {
-        this.kafkaTemplate = kafkaTemplate;
-    }
 
     public void sendMessageToKafka(NotifyEvent event) {
         try {

@@ -4,7 +4,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotNull;
-import org.example.authservice.db.Role;
+import org.example.kafkaEvent.Role;
 
 public record UserCreateRequest(
         @NotNull

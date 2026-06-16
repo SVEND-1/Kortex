@@ -8,14 +8,15 @@ import org.example.adminservice.api.dto.response.RolePageResponse;
 import org.example.adminservice.api.dto.request.RoleRequestFilter;
 import org.example.adminservice.api.dto.response.RoleRequestResponse;
 import org.example.adminservice.api.dto.response.UserRestResponse;
-import org.example.adminservice.db.Role;
 import org.example.adminservice.db.RoleRequest;
 import org.example.adminservice.db.RoleRequestRepository;
+import org.example.adminservice.domain.exception.IncorrectUpdateRoleException;
 import org.example.adminservice.domain.exception.PendingRequestException;
 import org.example.adminservice.domain.mapper.RoleRequestMapper;
-import org.example.adminservice.kafka.NotifyKafkaProducer;
+import org.example.adminservice.kafka.KafkaProducer;
 import org.example.kafkaEvent.NotifyEvent;
 import org.example.kafkaEvent.NotifyType;
+import org.example.kafkaEvent.Role;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Async;
@@ -34,7 +35,7 @@ public class RoleRequestService {
     private final RoleRequestRepository roleRequestRepository;
     private final RoleRequestMapper roleRequestMapper;
     private final AdminService adminService;
-    private final NotifyKafkaProducer kafkaProducer;
+    private final KafkaProducer kafkaProducer;
     private final UserFeignClient userFeignClient;
 
     public UserRestResponse findUserDTO(Long userId){
@@ -70,17 +71,22 @@ public class RoleRequestService {
         });
     }
 
-    public RoleRequestResponse create(Role requestedRole, RoleRequest.TypeAction typeAction,//TODO Request dto
-                                      String message,Long userId) {
+    public RoleRequestResponse create(Role updatedRole, RoleRequest.TypeAction typeAction,//TODO Request dto
+                                      String message, Long userId) {
         try {
+            UserRestResponse user = findUserDTO(userId);
             if (hasPendingRequestForSameAction(userId)) {
                 log.warn("У вас уже есть активная заявка на это действие");
                 throw new PendingRequestException("У вас уже есть активная заявка на это действие");
             }
+            if (isValidRoleAppoint(user.role(), updatedRole)) {
+                throw new IncorrectUpdateRoleException("Нельзя назначить на роль" + updatedRole.name() +
+                        " пользователя с ролью: " + user.role());
+            }
 
             RoleRequest roleRequest = RoleRequest.builder()//TODO вынести
                     .userId(userId)
-                    .requestedRole(requestedRole)
+                    .requestedRole(updatedRole)
                     .typeAction(typeAction)
                     .message(message)
                     .status(RoleRequest.Status.PENDING)
@@ -157,6 +163,24 @@ public class RoleRequestService {
             log.error("Ошибка отмены заявки пользователя, ex={} ", ex.getMessage());
             throw new RuntimeException("Не удалось отклонить заявку: " + ex.getMessage());
         }
+    }
+
+    private boolean isValidRoleAppoint(Role userRole, Role updateRole) {
+        if(Role.COURIER.equals(updateRole)) {
+            if(userRole.equals(Role.ADMIN) ||
+                    userRole.equals(Role.SELLER)) {
+                log.warn("Нельзя назначить курьером пользователя с ролью: {}", userRole);
+                return true;
+            }
+        }
+        if(Role.SELLER.equals(updateRole)) {
+            if(userRole.equals(Role.ADMIN) ||
+                    userRole.equals(Role.COURIER)) {
+                log.warn("Нельзя назначить продавцом пользователя с ролью: {}", userRole);
+                return true;
+            }
+        }
+        return false;
     }
 
 

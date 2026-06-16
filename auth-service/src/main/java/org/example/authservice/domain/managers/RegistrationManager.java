@@ -11,18 +11,14 @@ import org.example.authservice.api.dto.response.RegistrationResponse;
 import org.example.authservice.api.dto.response.SimpleResponse;
 import org.example.authservice.api.dto.response.TokenResponse;
 import org.example.authservice.db.PendingRegistrationRepository;
-import org.example.authservice.db.Role;
 import org.example.authservice.db.UserEntity;
 import org.example.authservice.db.UserRepository;
 import org.example.authservice.domain.VerificationCodeGenerator;
 import org.example.authservice.domain.exception.EmailAlreadyExistsException;
 import org.example.authservice.domain.exception.InvalidVerificationCodeException;
 import org.example.authservice.domain.exception.RegistrationExpiredException;
-import org.example.authservice.kafka.NotifyKafkaProducer;
-import org.example.kafkaEvent.CartRegisterEvent;
-import org.example.kafkaEvent.NotifyEvent;
-import org.example.kafkaEvent.NotifyType;
-import org.example.kafkaEvent.UserRegisterEvent;
+import org.example.authservice.kafka.KafkaProducer;
+import org.example.kafkaEvent.*;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -41,7 +37,7 @@ import java.util.UUID;
 @Component
 public class RegistrationManager {
     private final UserRepository userRepository;
-    private final NotifyKafkaProducer kafkaProducer;
+    private final KafkaProducer kafkaProducer;
     private final PasswordEncoder passwordEncoder;
     private final TokenManagementManager tokenManagementManager;
     private final VerificationCodeGenerator verificationCodeGenerator;
@@ -130,7 +126,7 @@ public class RegistrationManager {
     }
 
     private void addToSpringSecurityContext(String email) {
-        Set<SimpleGrantedAuthority> roles = Collections.singleton(Role.USER.toAuthority());
+        Set<SimpleGrantedAuthority> roles = Collections.singleton(toAuthority(Role.USER));
         Authentication authentication = new UsernamePasswordAuthenticationToken(
                 email, null, roles);
         SecurityContextHolder.getContext().setAuthentication(authentication);
@@ -177,5 +173,9 @@ public class RegistrationManager {
                 notifyType
         );
         kafkaProducer.sendMessageToKafka(notifyEvent);
+    }
+
+    public SimpleGrantedAuthority toAuthority(Role role) {
+        return new SimpleGrantedAuthority("ROLE_" + role.name());
     }
 }

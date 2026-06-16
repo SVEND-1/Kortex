@@ -6,8 +6,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.authservice.api.dto.response.TokenResponse;
 import org.example.authservice.config.JwtTokenProvider;
-import org.example.authservice.db.Role;
 import org.example.authservice.domain.TokenRedisService;
+import org.example.kafkaEvent.Role;
 import org.springframework.stereotype.Component;
 
 @Slf4j

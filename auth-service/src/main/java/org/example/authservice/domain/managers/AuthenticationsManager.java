@@ -10,9 +10,10 @@ import org.example.authservice.api.dto.response.SimpleResponse;
 import org.example.authservice.api.dto.response.TokenResponse;
 import org.example.authservice.db.UserEntity;
 import org.example.authservice.db.UserRepository;
-import org.example.authservice.kafka.NotifyKafkaProducer;
+import org.example.authservice.kafka.KafkaProducer;
 import org.example.kafkaEvent.NotifyEvent;
 import org.example.kafkaEvent.NotifyType;
+import org.example.kafkaEvent.Role;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -31,7 +32,7 @@ import java.util.Set;
 public class AuthenticationsManager {
 
     private final UserRepository userRepository;
-    private final NotifyKafkaProducer kafkaProducer;
+    private final KafkaProducer kafkaProducer;
     private final TokenManagementManager tokenManagementManager;
     private final AuthenticationManager authenticationManager;
 
@@ -72,7 +73,7 @@ public class AuthenticationsManager {
     }
 
     private void addToSpringSecurityContext(UserEntity user) {
-        Set<SimpleGrantedAuthority> roles = Collections.singleton(user.getRole().toAuthority());
+        Set<SimpleGrantedAuthority> roles = Collections.singleton(toAuthority(user.getRole()));
         Authentication authToken = new UsernamePasswordAuthenticationToken(
                 user.getEmail(), null, roles);
         SecurityContextHolder.getContext().setAuthentication(authToken);
@@ -85,5 +86,9 @@ public class AuthenticationsManager {
                 NotifyType.LOGIN
         );
         kafkaProducer.sendMessageToKafka(notifyEvent);
+    }
+
+    public SimpleGrantedAuthority toAuthority(Role role) {
+        return new SimpleGrantedAuthority("ROLE_" + role.name());
     }
 }

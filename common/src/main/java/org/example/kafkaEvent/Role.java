@@ -1,4 +1,4 @@
-package org.example.userservice.db;
+package org.example.kafkaEvent;
 
 public enum Role {
     USER, ADMIN, COURIER, SELLER;

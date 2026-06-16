@@ -3,12 +3,13 @@ package org.example.userservice.domain;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.kafkaEvent.Role;
+import org.example.kafkaEvent.RoleUpdateEvent;
 import org.example.kafkaEvent.UserRegisterEvent;
 import org.example.userservice.api.dto.request.AddressUpdatedRequest;
 import org.example.userservice.api.dto.response.UserResponse;
 import org.example.userservice.api.dto.response.UserRestResponse;
 import org.example.userservice.db.Address;
-import org.example.userservice.db.Role;
 import org.example.userservice.db.UserEntity;
 import org.example.userservice.db.UserRepository;
 import org.example.userservice.domain.mapper.AddressMapper;
@@ -45,6 +46,17 @@ public class UserService {
             userRepository.save(saved);
         }catch (Exception e){
             throw new RuntimeException("Не удалось сохранить пользователя");
+        }
+    }
+
+    public void roleUpdate(RoleUpdateEvent event) {
+        try {
+            UserEntity saved = getByIdEntity(event.id());
+            saved.setRole(event.updatedRole());
+            userRepository.save(saved);
+        }catch (Exception e){
+            log.error("Ошибка обновление роли, ex={}", e.getMessage());
+            throw new RuntimeException();
         }
     }
 
