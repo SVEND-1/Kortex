@@ -7,6 +7,7 @@ import org.example.kafkaEvent.Role;
 import org.example.kafkaEvent.RoleUpdateEvent;
 import org.example.kafkaEvent.UserRegisterEvent;
 import org.example.userservice.api.dto.request.AddressUpdatedRequest;
+import org.example.userservice.api.dto.response.AddressRestResponse;
 import org.example.userservice.api.dto.response.UserResponse;
 import org.example.userservice.api.dto.response.UserRestResponse;
 import org.example.userservice.db.Address;
@@ -33,6 +34,10 @@ public class UserService {
 
     public UserRestResponse getByIdRest(Long id){
         return userMapper.convertEntityToRest(getByIdEntity(id));
+    }
+
+    public AddressRestResponse getAddressRest(Long id){
+        return addressMapper.convertEntityToDto(getByIdEntity(id).getAddress());
     }
 
     public UserResponse getByIdDto(Long id) {

@@ -41,6 +41,8 @@
         <module>admin-service</module>
         <module>api-gateway</module>
         <module>notification-service</module>
+        <module>user-service</module>
+        <module>saga-orchestrator</module>
         <module>frontend</module>
     </modules>
 

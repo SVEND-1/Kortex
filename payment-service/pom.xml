@@ -11,6 +11,12 @@
         <version>1.0-SNAPSHOT</version>
     </parent>
 
+    <properties>
+        <springdoc.version>1.6.15</springdoc.version>
+        <org.mapstruct.version>1.5.5.Final</org.mapstruct.version>
+    </properties>
+
+
     <artifactId>payment-service</artifactId>
     <packaging>jar</packaging>
 
@@ -35,6 +41,28 @@
         <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>ru.loolzaaa</groupId>
+            <artifactId>youkassa-sdk-java</artifactId>
+            <version>0.1.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-ui</artifactId>
+            <version>${springdoc.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-security</artifactId>
+            <version>${springdoc.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct</artifactId>
+            <version>${org.mapstruct.version}</version>
         </dependency>
 
         <!-- Spring Cloud Eureka Client -->

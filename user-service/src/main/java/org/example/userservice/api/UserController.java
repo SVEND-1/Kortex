@@ -2,8 +2,10 @@ package org.example.userservice.api;
 
 import lombok.RequiredArgsConstructor;
 import org.example.userservice.api.dto.request.AddressUpdatedRequest;
+import org.example.userservice.api.dto.response.AddressRestResponse;
 import org.example.userservice.api.dto.response.UserResponse;
 import org.example.userservice.api.dto.response.UserRestResponse;
+import org.example.userservice.db.Address;
 import org.example.userservice.domain.UserService;
 import org.example.userservice.domain.expetions.AccessDeniedException;
 import org.springframework.http.ResponseEntity;
@@ -24,6 +26,17 @@ public class UserController {
             throw new AccessDeniedException("Нет прав доступа к данному профилю");
         }
         return userService.getByIdRest(id);
+    }
+
+    @GetMapping("/{id}/address")
+    public AddressRestResponse getUserAddress(
+            @PathVariable Long id,
+            @RequestHeader("X-User-Role") String currentUserRole
+    ) {
+        if (currentUserRole == null || !"COURIER".equals(currentUserRole)) {
+            throw new AccessDeniedException("Нет прав доступа к данному профилю");
+        }
+        return userService.getAddressRest(id);
     }
 
     @GetMapping()
