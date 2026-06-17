@@ -27,7 +27,7 @@ public class SagaEntity {
     private Long paymentId;
 
     @ElementCollection
-    private List<OrderItem> items;
+    private List<OrderItemEntity> items;
 
     private BigDecimal totalAmount;
 
@@ -35,7 +35,7 @@ public class SagaEntity {
     private SagaState state;
 
     @ElementCollection
-    private List<String> executedSteps = new ArrayList<>();
+    private List<SagaStep> executedSteps = new ArrayList<>();
 
     private LocalDateTime createdAt;
 
