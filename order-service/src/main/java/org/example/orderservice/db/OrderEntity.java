@@ -46,11 +46,6 @@ public class OrderEntity {
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<OrderItemEntity> orderItems = new ArrayList<>();
-
-    @PrePersist
-    private void init(){
-        this.orderDate = LocalDateTime.now();
-    }
 }
 
 

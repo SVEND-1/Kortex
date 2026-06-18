@@ -26,6 +26,7 @@ public class OrderItemService {
 
     public List<OrderItemEntity> createItems(List<OrderItemCreateRequest> request) {
         try {
+            log.info("ПЕРЕДАЛИ ВОТ ЭТО{}",request);
             List<OrderItemEntity> itemEntities = new ArrayList<>();
             for (OrderItemCreateRequest item : request) {
                 OrderItemEntity itemEntity = OrderItemEntity.builder()

@@ -31,12 +31,11 @@ class CartManager {
             }
 
             const data = await response.json();
-            // items: каждый item имеет id, productId, price (общая стоимость), quantity
             const items = (data.items || []).map(item => ({
                 id: item.id,
                 productId: item.productId,
                 quantity: Number(item.quantity) || 1,
-                totalPrice: Number(item.price) || 0,  // полная стоимость позиции
+                totalPrice: Number(item.price) || 0,
                 productName: null,
                 image: null,
                 unitPrice: null,
@@ -48,9 +47,7 @@ class CartManager {
                 total: Number(data.total) || 0
             };
 
-            // Обогащаем товары данными из product-service
             await this.enrichItemsWithProductDetails();
-
             $(window).trigger('cartUpdated', [this.cart]);
             return this.cart;
         } catch (error) {
@@ -61,7 +58,6 @@ class CartManager {
         }
     }
 
-    // Загружает данные о товарах для всех productId
     async enrichItemsWithProductDetails() {
         const uniqueProductIds = [...new Set(this.cart.items.map(item => item.productId).filter(id => id))];
         const productPromises = uniqueProductIds.map(async (productId) => {
@@ -86,11 +82,9 @@ class CartManager {
             }
         });
 
-        // Обновляем каждый item, извлекая первое изображение из списка images
         this.cart.items = this.cart.items.map(item => {
             const product = productMap[item.productId];
             if (product) {
-                // images - это массив, берём первый элемент или null
                 const firstImage = product.images && product.images.length > 0 ? product.images[0] : null;
                 return {
                     ...item,
@@ -109,7 +103,6 @@ class CartManager {
             };
         });
 
-        // Пересчитываем total, если нужно (на всякий случай)
         this.cart.total = this.cart.items.reduce((sum, item) => sum + item.totalPrice, 0);
     }
 

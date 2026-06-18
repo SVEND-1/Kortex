@@ -21,7 +21,7 @@ import java.time.LocalDateTime;
 public class PaymentManager {
 
     private final PaymentRepository paymentRepository;
-    private final PaymentService paymentService;
+//    private final PaymentService paymentService;
 
     public void savePayment(String idempotencyKey, Payment saved, BigDecimal amount, Long userId) {
         try {
@@ -34,7 +34,7 @@ public class PaymentManager {
                     .createdAt(LocalDateTime.now())
                     .build();
 
-            paymentService.save(paymentEntity);
+            paymentRepository.save(paymentEntity);
         }catch (Exception e) {
             log.error("Не удалось сохранить платеж paymentId={},ex={}", saved.getId(), e.getMessage());
             throw new RuntimeException(e.getMessage());
@@ -42,17 +42,17 @@ public class PaymentManager {
     }
 
 
-    public Page<PaymentResponse> findAllPaymentsByUser(Long userId,int page, int size) {
-        try {
-            Pageable pageable = PageRequest.of(page, size);
-
-            Page<PaymentEntity> userPayments = paymentRepository
-                    .findAllByUserId(userId, pageable);
-
-            return userPayments.map(el -> paymentService.findPaymentDto(el.getPaymentId(),userId));
-        }catch (Exception e) {
-            log.error("Не удалось загрузить страницу с платежами, ex={}", e.getMessage());
-            throw new RuntimeException(e.getMessage());
-        }
-    }
+//    public Page<PaymentResponse> findAllPaymentsByUser(Long userId,int page, int size) {
+//        try {
+//            Pageable pageable = PageRequest.of(page, size);
+//
+//            Page<PaymentEntity> userPayments = paymentRepository
+//                    .findAllByUserId(userId, pageable);
+//
+//            return userPayments.map(el -> paymentService.findPaymentDto(el.getPaymentId(),userId));
+//        }catch (Exception e) {
+//            log.error("Не удалось загрузить страницу с платежами, ex={}", e.getMessage());
+//            throw new RuntimeException(e.getMessage());
+//        }
+//    }
 }

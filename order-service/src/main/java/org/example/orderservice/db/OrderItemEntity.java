@@ -19,7 +19,7 @@ public class OrderItemEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY,cascade = CascadeType.ALL)
-    @JoinColumn(name = "order_id", nullable = false)
+    @JoinColumn(name = "order_id")
     private OrderEntity order;
 
     @JoinColumn(name = "product_id", nullable = false)

@@ -1,7 +1,7 @@
 package org.example.saga.command.compensate;
 
-public record AwaitPaymentFailedCommand(
+public record PaymentFailedCommand(
         String sagaId,
-        Long paymentId
+        String paymentId
 ) {
 }

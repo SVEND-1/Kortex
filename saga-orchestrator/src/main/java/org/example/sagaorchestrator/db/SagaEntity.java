@@ -24,9 +24,9 @@ public class SagaEntity {
 
     private Long userId;
 
-    private Long paymentId;
+    private String paymentId;
 
-    @ElementCollection
+    @ElementCollection(fetch = FetchType.EAGER)
     private List<OrderItemEntity> items;
 
     private BigDecimal totalAmount;
@@ -34,7 +34,7 @@ public class SagaEntity {
     @Enumerated(EnumType.STRING)
     private SagaState state;
 
-    @ElementCollection
+    @ElementCollection(fetch = FetchType.EAGER)
     private List<SagaStep> executedSteps = new ArrayList<>();
 
     private LocalDateTime createdAt;

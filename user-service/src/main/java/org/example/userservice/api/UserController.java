@@ -31,10 +31,10 @@ public class UserController {
     @GetMapping("/{id}/address")
     public AddressRestResponse getUserAddress(
             @PathVariable Long id,
-            @RequestHeader("X-User-Role") String currentUserRole
+            @RequestHeader(value = "X-User-Id", required = false) Long userId
     ) {
-        if (currentUserRole == null || !"COURIER".equals(currentUserRole)) {
-            throw new AccessDeniedException("Нет прав доступа к данному профилю");
+        if(!userId.equals(id)){
+            throw new RuntimeException("Пользователь не может получать адрес который не привязан к нему");
         }
         return userService.getAddressRest(id);
     }

@@ -33,7 +33,7 @@ public class GatewayRoutesConfig {
 
                 // ── Payment Service ───────────────────────────────────────
                 .route("payment-service", r -> r
-                        .path("/api/payments/**")
+                        .path("/api/payments/**", "/api/webhooks/**")
                         .filters(f -> f.stripPrefix(0))
                         .uri("http://localhost:8084"))
 

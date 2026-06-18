@@ -1,6 +1,8 @@
 package org.example.saga.command.approve;
 
-public record AwaitPaymentCommand(
+import java.math.BigDecimal;
+
+public record PaymentSuccessCommand(
         String sagaId
 ) {
 }

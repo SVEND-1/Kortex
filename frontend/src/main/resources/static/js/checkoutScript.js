@@ -1,73 +1,171 @@
-// checkoutScript.js - ИСПРАВЛЕННАЯ ВЕРСИЯ
-
 document.addEventListener('DOMContentLoaded', function() {
     initCheckout();
 });
 
+let selectedCartIds = [];
+let cartItems = [];
+let userData = null;
+
 function initCheckout() {
-    loadCartData();
+    const urlParams = new URLSearchParams(window.location.search);
+    const idsParam = urlParams.get('ids');
+    if (idsParam) {
+        selectedCartIds = idsParam.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+    }
+    console.log('Выбранные ID корзины:', selectedCartIds);
+
+    loadUserAndCart();
     setupEventHandlers();
-    setupAutoFill();
 }
 
-// Загрузка данных корзины с сервера
-async function loadCartData() {
+async function loadUserAndCart() {
     try {
         showLoading();
 
-        const response = await fetch('/api/orders/me-create', {
+        // Получаем данные пользователя
+        const userResponse = await fetch('/api/users', {
             method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             credentials: 'include'
         });
 
-        if (response.status === 401) {
-            showError('Для оформления заказа требуется авторизация');
-            setTimeout(() => {
-                window.location.href = '/login?redirect=/checkout';
-            }, 2000);
+        if (!userResponse.ok) {
+            if (userResponse.status === 401 || userResponse.status === 403) {
+                showError('Для оформления заказа требуется авторизация');
+                setTimeout(() => {
+                    window.location.href = '/login?redirect=/checkout';
+                }, 2000);
+                return;
+            }
+            throw new Error(`Ошибка загрузки пользователя: ${userResponse.status}`);
+        }
+
+        userData = await userResponse.json();
+        console.log('Данные пользователя:', userData);
+
+        // Проверяем адрес
+        const hasAddress = userData.address && userData.address.city && userData.address.street;
+        const addressWarning = document.getElementById('addressWarning');
+        const userInfoBlock = document.getElementById('userInfoBlock');
+        const submitBtn = document.getElementById('submit-order-btn');
+
+        if (!hasAddress) {
+            addressWarning.style.display = 'block';
+            userInfoBlock.style.display = 'none';
+            submitBtn.disabled = true;
+        } else {
+            addressWarning.style.display = 'none';
+            userInfoBlock.style.display = 'block';
+            // Заполняем информацию о пользователе
+            document.getElementById('displayName').textContent = userData.name || 'Не указано';
+            document.getElementById('displayEmail').textContent = userData.email || 'Не указано';
+            const fullAddress = `${userData.address.city}, ${userData.address.street}, ${userData.address.house || ''} ${userData.address.apartment || ''}`.trim();
+            document.getElementById('displayAddress').textContent = fullAddress || 'Не указан';
+            submitBtn.disabled = false;
+        }
+
+        // Получаем корзину
+        const cartResponse = await fetch('/api/carts/me', {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include'
+        });
+
+        if (!cartResponse.ok) {
+            throw new Error(`Ошибка загрузки корзины: ${cartResponse.status}`);
+        }
+
+        const cartData = await cartResponse.json();
+        console.log('Данные корзины:', cartData);
+
+        const allItems = cartData.items || [];
+        if (selectedCartIds.length > 0) {
+            cartItems = allItems.filter(item => selectedCartIds.includes(item.id));
+        } else {
+            cartItems = allItems;
+        }
+
+        if (cartItems.length === 0) {
+            document.getElementById('order-items-container').innerHTML = '<p class="empty-cart">Нет выбранных товаров</p>';
+            submitBtn.disabled = true;
             return;
         }
 
-        if (!response.ok) {
-            throw new Error(`Ошибка загрузки данных: ${response.status}`);
+        await enrichItemsWithProductDetails();
+        renderOrderItems(cartItems);
+        updateOrderSummary(cartItems);
+
+        // Если адрес есть, кнопка уже активна, иначе она заблокирована
+        if (!hasAddress) {
+            submitBtn.disabled = true;
         }
 
-        const data = await response.json();
-        console.log('Данные с сервера:', data);
-
-        // Отображаем данные
-        renderOrderItems(data.cartItems || []);
-        updateOrderSummary(data.totalPrice || 0, data.totalItems || 0);
-        renderUserInfo(data.user || {});
-
-        // Обновляем итоговую сумму в кнопке
-        updateCheckoutButton(data.totalPrice || 0);
-
     } catch (error) {
-        console.error('Ошибка при загрузке данных:', error);
-        showError(`Ошибка загрузки данных: ${error.message}`);
+        console.error('Ошибка загрузки данных:', error);
+        showError(`Ошибка загрузки: ${error.message}`);
     } finally {
         hideLoading();
     }
 }
 
-// Отображение товаров в заказе
-function renderOrderItems(cartItems) {
-    const container = document.getElementById('order-items-container');
+// Функция enrichItemsWithProductDetails (копия из cartManager)
+async function enrichItemsWithProductDetails() {
+    const uniqueProductIds = [...new Set(cartItems.map(item => item.productId).filter(id => id))];
+    const productPromises = uniqueProductIds.map(async (productId) => {
+        try {
+            const response = await fetch(`/api/products/${productId}`, {
+                credentials: 'include'
+            });
+            if (!response.ok) return null;
+            const productData = await response.json();
+            return { productId, productData };
+        } catch (err) {
+            console.error(`Ошибка загрузки товара ${productId}:`, err);
+            return null;
+        }
+    });
 
-    if (!cartItems || cartItems.length === 0) {
-        container.innerHTML = '<p class="empty-cart">Корзина пуста</p>';
+    const results = await Promise.all(productPromises);
+    const productMap = {};
+    results.forEach(result => {
+        if (result) {
+            productMap[result.productId] = result.productData;
+        }
+    });
+
+    cartItems = cartItems.map(item => {
+        const product = productMap[item.productId];
+        if (product) {
+            const firstImage = product.images && product.images.length > 0 ? product.images[0] : null;
+            return {
+                ...item,
+                productName: product.name || 'Товар',
+                image: firstImage,
+                unitPrice: Number(product.price) || 0,
+                description: product.description || ''
+            };
+        }
+        return {
+            ...item,
+            productName: 'Товар (данные не загружены)',
+            image: null,
+            unitPrice: 0,
+            description: ''
+        };
+    });
+}
+
+function renderOrderItems(items) {
+    const container = document.getElementById('order-items-container');
+    if (!items || items.length === 0) {
+        container.innerHTML = '<p class="empty-cart">Нет товаров для отображения</p>';
         return;
     }
 
-    container.innerHTML = cartItems.map(item => {
-        const imageUrl = item.productImage ||
-            (item.image ? `/uploads/images/${item.image}` : '/images/no-image.png');
-        const productName = item.productName || item.name || 'Товар';
-        const price = item.price || 0;
+    container.innerHTML = items.map(item => {
+        const imageUrl = item.image ? `/uploads/images/${item.image}` : '/images/no-image.png';
+        const productName = item.productName || 'Товар';
+        const price = item.unitPrice || 0;
         const quantity = item.quantity || 1;
         const total = price * quantity;
 
@@ -89,377 +187,145 @@ function renderOrderItems(cartItems) {
     }).join('');
 }
 
-// Обновление итоговой информации
-function updateOrderSummary(totalPrice, totalItems) {
-    const itemsCount = document.getElementById('items-count');
-    const totalPriceElement = document.getElementById('total-price');
+function updateOrderSummary(items) {
+    let total = 0;
+    let count = 0;
+    items.forEach(item => {
+        const price = item.unitPrice || 0;
+        const quantity = item.quantity || 1;
+        total += price * quantity;
+        count += quantity;
+    });
 
-    if (itemsCount) {
-        itemsCount.textContent = `${totalItems} шт.`;
-    }
-
-    if (totalPriceElement) {
-        totalPriceElement.textContent = formatPrice(totalPrice);
-    }
+    document.getElementById('items-count').textContent = `${count} шт.`;
+    document.getElementById('total-price').textContent = formatPrice(total);
+    updateCheckoutButton(total);
 }
 
-// Отображение информации о пользователе
-function renderUserInfo(user) {
-    const container = document.getElementById('user-info-section');
-    console.log('Рендерим user:', user);
-
-    if (!user || !user.email) {
-        container.innerHTML = `
-            <div class="user-info-header">
-                <h3>Информация о покупателе</h3>
-            </div>
-            <div class="user-details">
-                <p style="color: #666; text-align: center;">Войдите в аккаунт</p>
-            </div>
-        `;
-        return;
-    }
-
-    // Пробуем разные варианты названий полей
-    const fullName = user.fullName ||
-        `${user.firstName || ''} ${user.lastName || ''}`.trim() ||
-        user.name ||
-        'Не указано';
-
-    const address = user.address ||
-        user.deliveryAddress ||
-        user.shippingAddress ||
-        'Не указан';
-
-    container.innerHTML = `
-        <div class="user-info-header">
-            <h3>Информация о покупателе</h3>
-        </div>
-        <div class="user-details">
-            <div class="user-detail">
-                <span>Имя:</span>
-                <span>${fullName}</span>
-            </div>
-            <div class="user-detail">
-                <span>Email:</span>
-                <span>${user.email}</span>
-            </div>
-            <div class="user-detail">
-                <span>Адрес:</span>
-                <span>${address}</span>
-            </div>
-        </div>
-    `;
-}
-
-// Настройка обработчиков событий
 function setupEventHandlers() {
-    const submitOrderBtn = document.getElementById('submit-order-btn');
+    const submitBtn = document.getElementById('submit-order-btn');
+    submitBtn.addEventListener('click', handleSubmitOrder);
 
-    if (submitOrderBtn) {
-        submitOrderBtn.addEventListener('click', handleSubmitOrder);
-    }
-
-    // Валидация полей при вводе
-    const requiredFields = document.querySelectorAll('#checkout-form input[required]');
-    requiredFields.forEach(field => {
-        field.addEventListener('blur', validateField);
+    // Валидация только согласия (других полей нет)
+    document.getElementById('agree-terms').addEventListener('change', function() {
+        // Можно дополнительно проверять, но основная валидация в validateForm
     });
 }
 
-// Настройка автозаполнения формы из данных пользователя
-function setupAutoFill() {
-    setTimeout(() => {
-        const userEmail = document.querySelector('#user-info-section .user-detail:nth-child(2) span:last-child')?.textContent;
-        const userName = document.querySelector('#user-info-section .user-detail:nth-child(1) span:last-child')?.textContent;
-        const userAddress = document.querySelector('#user-info-section .user-detail:nth-child(3) span:last-child')?.textContent;
-
-        // Автозаполняем только если данные есть и не "Не указано"
-        if (userEmail && userEmail !== 'Не указан') {
-            const emailInput = document.getElementById('email');
-            if (emailInput) emailInput.value = userEmail;
-        }
-
-        if (userName && userName !== 'Не указано') {
-            const nameInput = document.getElementById('recipient-name');
-            if (nameInput) nameInput.value = userName;
-        }
-
-        if (userAddress && userAddress !== 'Не указан') {
-            const addressInput = document.getElementById('address');
-            if (addressInput) addressInput.value = userAddress;
-        }
-    }, 500);
-}
-
-// Обработка нажатия на кнопку "Оформить заказ" - ИСПРАВЛЕННАЯ ВЕРСИЯ
-async function handleSubmitOrder(e) {
-    e.preventDefault();
-
-    console.log('Начинаем оформление заказа...');
-
-    if (!validateForm()) {
-        console.log('Форма не валидна');
-        return;
-    }
-
-    const submitBtn = document.getElementById('submit-order-btn');
-    if (!submitBtn) return;
-
-    // Сохраняем оригинальный текст ДО try-catch
-    const originalText = submitBtn.innerHTML;
-
-    // Блокируем кнопку
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<span>Оформление...</span>';
-
-    try {
-        // Отправляем POST запрос на создание заказа
-        console.log('Отправляем запрос на /api/orders...');
-
-        // Добавляем таймаут для запроса
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 секунд таймаут
-
-        const response = await fetch('/api/orders', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            credentials: 'include',
-            signal: controller.signal
-        });
-
-        clearTimeout(timeoutId);
-
-        console.log('Ответ сервера:', response.status);
-
-        if (response.status === 401) {
-            showError('Сессия истекла. Пожалуйста, войдите снова.');
-            setTimeout(() => {
-                window.location.href = '/login?redirect=/checkout';
-            }, 2000);
-            return;
-        }
-
-        // Пробуем прочитать ответ, даже если он неполный
-        let result;
-        try {
-            result = await response.json();
-            console.log('Результат создания заказа:', result);
-        } catch (jsonError) {
-            console.warn('Не удалось распарсить JSON ответ:', jsonError);
-            // Если не удалось распарсить JSON, но статус 201 - считаем успехом
-            if (response.status === 201) {
-                result = { success: true };
-            } else {
-                throw new Error('Сервер вернул невалидный ответ');
-            }
-        }
-
-        if (!response.ok && result && result.error) {
-            throw new Error(result.error || `Ошибка ${response.status}`);
-        }
-
-        // Показываем сообщение об успехе и переходим на главную
-        alert('✅ Заказ успешно оформлен!' +
-            (result.order && result.order.id ? ' Номер заказа: #' + result.order.id : ''));
-
-        // Немедленный редирект на главную
-        window.location.href = '/';
-
-    } catch (error) {
-        console.error('Ошибка при оформлении заказа:', error);
-
-        // Показываем понятное сообщение об ошибке
-        let errorMessage = 'Не удалось оформить заказ. ';
-
-        if (error.name === 'AbortError') {
-            errorMessage += 'Время ожидания истекло. Попробуйте позже.';
-        } else if (error.message.includes('Failed to fetch')) {
-            errorMessage += 'Проблема с подключением к серверу.';
-        } else {
-            errorMessage += error.message;
-        }
-
-        showError(errorMessage);
-
-        // Восстанавливаем кнопку
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalText;
-
-    } finally {
-        // Убедимся, что кнопка разблокирована в любом случае
-        if (submitBtn.disabled) {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = originalText;
-        }
-    }
-}
-
-// Валидация формы
 function validateForm() {
     let isValid = true;
 
-    // Проверяем только обязательные поля
-    const requiredFields = [
-        'recipient-name',
-        'email',
-        'address'
-    ];
-
-    requiredFields.forEach(fieldId => {
-        const field = document.getElementById(fieldId);
-        if (!field || !field.value.trim()) {
-            highlightFieldError(field, 'Это поле обязательно для заполнения');
-            isValid = false;
-        } else if (fieldId === 'email' && !isValidEmail(field.value)) {
-            highlightFieldError(field, 'Введите корректный email');
-            isValid = false;
-        } else {
-            clearFieldError(field);
-        }
-    });
-
-    // Проверяем согласие с условиями
-    const agreeTerms = document.getElementById('agree-terms');
-    if (!agreeTerms || !agreeTerms.checked) {
+    // Проверяем согласие
+    const agree = document.getElementById('agree-terms');
+    if (!agree || !agree.checked) {
         showError('Необходимо согласиться с условиями использования');
+        isValid = false;
+    }
+
+    // Проверяем наличие адреса (дополнительная защита)
+    if (userData && (!userData.address || !userData.address.city)) {
+        showError('Добавьте адрес доставки в профиле');
         isValid = false;
     }
 
     return isValid;
 }
 
-// Валидация отдельного поля
-function validateField(e) {
-    const field = e.target;
+async function handleSubmitOrder(e) {
+    e.preventDefault();
 
-    if (field.hasAttribute('required') && !field.value.trim()) {
-        highlightFieldError(field, 'Это поле обязательно для заполнения');
-    } else if (field.type === 'email' && !isValidEmail(field.value)) {
-        highlightFieldError(field, 'Введите корректный email');
-    } else {
-        clearFieldError(field);
+    if (!validateForm()) return;
+
+    const requestItems = cartItems.map(item => ({
+        productId: item.productId,
+        quantity: item.quantity
+    }));
+
+    const comment = document.getElementById('comment').value.trim();
+
+    const submitBtn = document.getElementById('submit-order-btn');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span>Оформление...</span>';
+
+    try {
+        const response = await fetch('/api/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+                comment: comment,
+                request: requestItems
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.error || `Ошибка ${response.status}`);
+        }
+
+        alert('✅ Заказ успешно оформлен!');
+        window.location.href = '/';
+    } catch (error) {
+        console.error('Ошибка оформления:', error);
+        showError(error.message);
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
     }
 }
 
-function highlightFieldError(field, message) {
-    if (!field) return;
-
-    field.style.borderColor = '#dc3545';
-    field.style.boxShadow = '0 0 0 3px rgba(220, 53, 69, 0.1)';
-
-    // Удаляем предыдущее сообщение об ошибке
-    const existingError = field.parentNode.querySelector('.field-error');
-    if (existingError) existingError.remove();
-
-    // Добавляем новое сообщение об ошибке
-    const errorElement = document.createElement('div');
-    errorElement.className = 'field-error';
-    errorElement.style.color = '#dc3545';
-    errorElement.style.fontSize = '13px';
-    errorElement.style.marginTop = '5px';
-    errorElement.textContent = message;
-
-    field.parentNode.appendChild(errorElement);
-}
-
-function clearFieldError(field) {
-    if (!field) return;
-
-    field.style.borderColor = '#e9ecef';
-    field.style.boxShadow = 'none';
-
-    const existingError = field.parentNode.querySelector('.field-error');
-    if (existingError) existingError.remove();
-}
-
-// Вспомогательные функции валидации
-function isValidEmail(email) {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-}
-
-// Показ состояния загрузки
 function showLoading() {
-    const itemsContainer = document.getElementById('order-items-container');
-    const userContainer = document.getElementById('user-info-section');
-
-    if (itemsContainer) {
-        itemsContainer.innerHTML = '<div class="loading-spinner">Загрузка...</div>';
-    }
-
-    if (userContainer) {
-        userContainer.innerHTML = '<div class="loading-spinner">Загрузка...</div>';
-    }
+    const container = document.getElementById('order-items-container');
+    if (container) container.innerHTML = '<div class="loading-spinner">Загрузка...</div>';
 }
 
 function hideLoading() {
-    // Можно добавить, если нужно явно скрывать загрузку
+    // можно оставить пустым
 }
 
-// Показ ошибки
 function showError(message) {
     const modal = document.getElementById('error-modal');
     const messageElement = document.getElementById('error-message');
-
-    if (messageElement) {
-        messageElement.textContent = message;
-    }
-
+    if (messageElement) messageElement.textContent = message;
     if (modal) {
         modal.classList.add('active');
         document.body.style.overflow = 'hidden';
     }
 }
 
-// Закрытие модального окна
 function closeModal() {
-    document.querySelectorAll('.modal').forEach(modal => {
-        modal.classList.remove('active');
-    });
+    document.querySelectorAll('.modal').forEach(modal => modal.classList.remove('active'));
     document.body.style.overflow = '';
 }
 
-// Обновление кнопки оформления
 function updateCheckoutButton(total) {
     const button = document.getElementById('submit-order-btn');
     if (button) {
-        const priceElement = button.querySelector('.button-price');
-        if (!priceElement) {
-            const priceSpan = document.createElement('span');
-            priceSpan.className = 'button-price';
-            priceSpan.textContent = formatPrice(total);
-            button.querySelector('.button-text').after(priceSpan);
-        } else {
-            priceElement.textContent = formatPrice(total);
-        }
+        const priceSpan = button.querySelector('.button-price') || (() => {
+            const span = document.createElement('span');
+            span.className = 'button-price';
+            button.querySelector('.button-text')?.after(span);
+            return span;
+        })();
+        priceSpan.textContent = ` ${formatPrice(total)}`;
     }
 }
 
-// Форматирование цены
 function formatPrice(price) {
     return new Intl.NumberFormat('ru-RU', {
-        style: 'decimal',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0
-    }).format(price) + ' ₽';
+        style: 'currency',
+        currency: 'RUB',
+        minimumFractionDigits: 0
+    }).format(price || 0);
 }
 
-// Глобальные функции
+// Глобальные функции для модалок
 window.closeModal = closeModal;
 
-// Обработка клика вне модального окна
 document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('modal')) {
-        closeModal();
-    }
+    if (e.target.classList.contains('modal')) closeModal();
 });
 
-// Обработка Escape для закрытия модальных окон
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        closeModal();
-    }
+    if (e.key === 'Escape') closeModal();
 });

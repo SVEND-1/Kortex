@@ -64,9 +64,9 @@ public class PaymentService {
         return paymentMapper.convertEntityToPaymentResponse(findPayment(paymentId));
     }
 
-    public PaymentPageResponse findAllPaymentsByUser(Long userId, int page, int size) {
-        return paymentMapper.toPageResponse(paymentManager.findAllPaymentsByUser(userId,page,size));
-    }
+//    public PaymentPageResponse findAllPaymentsByUser(Long userId, int page, int size) {
+//        return paymentMapper.toPageResponse(paymentManager.findAllPaymentsByUser(userId,page,size));
+//    }
 
 //    public ReceiptResponse findReceipt(String paymentId){
 //        isValidUser(paymentId);
@@ -74,15 +74,16 @@ public class PaymentService {
 //    }
 
     @Transactional
-    public PaymentCreateResponse createPayment(BigDecimal amount,Long orderId,Long userId) {
+    public PaymentCreateResponse createPayment(BigDecimal amount,Long orderId,Long userId,String sagaId) {
         String idempotencyKey = UUID.randomUUID().toString();
         try {
             BigDecimal yookassaAmount = amount.setScale(2, RoundingMode.HALF_UP);
             String value = yookassaAmount.toPlainString();
-            Payment saved = yooKassaManager.createYooKassaPayment(paymentProcessor,idempotencyKey,value,orderId);
+            Payment saved = yooKassaManager.createYooKassaPayment(paymentProcessor,idempotencyKey,value,orderId,sagaId);
 
             paymentManager.savePayment(idempotencyKey,saved,yookassaAmount,userId);
 
+            log.info("ССЫЛКА: {}", saved.getConfirmation().getConfirmationUrl());
             return new PaymentCreateResponse(
                     saved.getId(),
                     saved.getConfirmation().getConfirmationUrl(),

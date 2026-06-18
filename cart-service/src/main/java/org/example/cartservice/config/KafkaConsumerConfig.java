@@ -3,8 +3,6 @@ package org.example.cartservice.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
-import org.example.kafkaEvent.CartRegisterEvent;
-import org.example.kafkaEvent.NotifyEvent;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -25,15 +23,16 @@ public class KafkaConsumerConfig {
     private String port;
 
     @Bean
-    public ConsumerFactory<String, CartRegisterEvent> consumerFactory(
-            ObjectMapper objectMapper
-    ) {
+    public ConsumerFactory<String, Object> consumerFactory(
+                ObjectMapper objectMapper
+        ) {
         Map<String, Object> props = new HashMap<>();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, port);
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, "cart-group");
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, "cart-service");
 
-        JsonDeserializer<CartRegisterEvent> jsonDeserializer =
-                new JsonDeserializer<>(CartRegisterEvent.class, objectMapper);
+        JsonDeserializer<Object> jsonDeserializer =
+                new JsonDeserializer<>(Object.class, objectMapper);
+        jsonDeserializer.addTrustedPackages("*");
 
         return new DefaultKafkaConsumerFactory<>(
                 props,
@@ -43,10 +42,10 @@ public class KafkaConsumerConfig {
     }
 
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, CartRegisterEvent> kafkaListenerContainerFactory(
-            ConsumerFactory<String, CartRegisterEvent> consumerFactory
-    ) {
-        ConcurrentKafkaListenerContainerFactory<String, CartRegisterEvent> factory =
+    public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory(
+                ConsumerFactory<String, Object> consumerFactory
+        ) {
+        ConcurrentKafkaListenerContainerFactory<String, Object> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory);
         factory.setConcurrency(1);

@@ -49,7 +49,8 @@ public class JwtFilter implements WebFilter {
             "/api/auth/test",
             "/api/products/public",
             "/api/products",
-            "/api/products/**"
+            "/api/products/**",
+            "/api/webhooks/yookassa"
     );
 
     public JwtFilter(RedisTemplate<String, Object> redisTemplate) {

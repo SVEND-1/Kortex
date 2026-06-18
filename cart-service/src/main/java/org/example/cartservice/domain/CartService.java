@@ -1,15 +1,21 @@
 package org.example.cartservice.domain;
 
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.cartservice.api.dto.response.CartResponse;
 import org.example.cartservice.db.Cart;
+import org.example.cartservice.db.CartItem;
+import org.example.cartservice.db.CartItemRepository;
 import org.example.cartservice.db.CartRepository;
 import org.example.cartservice.domain.exeptions.AccessDeniedException;
 import org.example.cartservice.domain.mapper.CartMapper;
+import org.example.saga.OrderItem;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -19,6 +25,7 @@ public class CartService {
     private final CartRepository cartRepository;
     private final CartItemService cartItemService;
     private final CartMapper cartMapper;
+    private final CartItemRepository cartItemRepository;
 
     public CartResponse getCartPage(Long userId) {
         try {
@@ -39,6 +46,20 @@ public class CartService {
             verifyCartOwnership(cart.getId(), userId);
 
             cartItemService.addItemToCart(cart, productId);
+            Cart saveCart = cartRepository.save(cart);
+            return cartMapper.convertCartToDto(saveCart);
+        } catch (Exception e) {
+            log.error("Ошибка при добавлении товара в корзину, ex={}", e.getMessage());
+            throw new RuntimeException("Ошибка при добавлении товара в корзину", e);
+        }
+    }
+
+    @Transactional
+    public CartResponse addItemToCartWithQuentity(Cart cart,Long productId, Long userId, Integer quantity) {
+        try {
+            verifyCartOwnership(cart.getId(), userId);
+
+            cartItemService.addItemToCartCompensate(cart, productId,quantity);
             Cart saveCart = cartRepository.save(cart);
             return cartMapper.convertCartToDto(saveCart);
         } catch (Exception e) {
@@ -87,6 +108,19 @@ public class CartService {
         } catch (Exception e) {
             log.error("Не удалось очистить корзину пользователя id={},ex={}", userId, e.getMessage());
             throw new RuntimeException("Не удалось очистить корзину ex=" + e);
+        }
+    }
+
+    @Transactional
+    public void clearCartItems(Cart cart,OrderItem orderItem, Long userId) {
+        try {
+            verifyCartOwnership(cart.getId(), userId);
+            CartItem existingCartItem = cartItemRepository.findByCartIdAndProductId(cart.getId(), orderItem.productId())
+                    .orElseThrow(() -> new EntityNotFoundException("Не удалось найти cartItem"));
+            cartItemRepository.delete(existingCartItem);
+        }catch (Exception e) {
+            log.error("Не удалось очистить элемент корзины,ex={}", e.getMessage());
+            throw new RuntimeException(e);
         }
     }
 

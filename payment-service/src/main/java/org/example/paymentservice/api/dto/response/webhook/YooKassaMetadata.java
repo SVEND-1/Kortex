@@ -7,4 +7,5 @@ import lombok.Data;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class YooKassaMetadata {
     private String orderId;                 // если вы передаёте orderId в metadata
+    private String sagaId;
 }

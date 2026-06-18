@@ -2,7 +2,6 @@ package org.example.paymentservice.api.dto.response.webhook;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
-import org.example.orderservice.api.dto.webhook.YooKassaAmount;
 
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)

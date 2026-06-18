@@ -38,6 +38,23 @@ public class CartItemService {
         }
     }
 
+    @Transactional
+    public void addItemToCartCompensate(Cart cart, Long productId,Integer quantity) {
+        try {
+            ProductResponse product = productClientService.getProduct(productId);
+            CartItem cartItem = CartItem.builder()
+                    .cart(cart)
+                    .productId(productId)
+                    .quantity(quantity)
+                    .price(product.price())
+                    .build();
+            cartItemRepository.save(cartItem);
+        }catch (Exception e) {
+            log.error("Не удалось создать элемент корзины, ex={}", e.getMessage());
+            throw new RuntimeException("Не удалось создать элемент корзины",e);
+        }
+    }
+
     private void incrementQuantity(CartItem existingCartItem) {
         existingCartItem.setQuantity(existingCartItem.getQuantity() + 1);
         existingCartItem.setPrice(calculatePrice(existingCartItem));

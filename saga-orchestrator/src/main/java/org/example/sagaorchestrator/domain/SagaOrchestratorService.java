@@ -6,10 +6,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.saga.OrderItem;
 import org.example.saga.command.approve.*;
 import org.example.saga.command.compensate.*;
+import org.example.saga.event.StartSagaEvent;
 import org.example.saga.event.approve.*;
 import org.example.saga.event.failed.*;
 import org.example.sagaorchestrator.db.*;
-import org.example.sagaorchestrator.dto.OrderCreateRequest;
 import org.example.sagaorchestrator.kafka.KafkaCommand;
 import org.springframework.stereotype.Service;
 
@@ -35,15 +35,14 @@ public class SagaOrchestratorService {
 
     //В команды добавлять что надо для работы и + sagaId
     //В ивентах возвращать sagaId + тру или фолс
-    //TODO переименовать все тут
-    public String  startSaga(OrderCreateRequest request) {
+    public String  startSaga(StartSagaEvent event) {
         String sagaId = UUID.randomUUID().toString();
         SagaEntity saga = SagaEntity.builder()
                 .id(sagaId)
-                .userId(request.userId())
-                .orderId(request.orderId())
-                .items(convertEntityToOrderItems(request.orderItems()))
-                .totalAmount(request.totalAmount())
+                .userId(event.userId())
+                .orderId(event.orderId())
+                .items(convertEntityToOrderItems(event.orderItems()))
+                .totalAmount(event.totalAmount())
                 .state(SagaState.STARTED)
                 .executedSteps(new ArrayList<>())
                 .createdAt(LocalDateTime.now())
@@ -87,7 +86,7 @@ public class SagaOrchestratorService {
         saga.setState(SagaState.CREATE_PAYMENT);
         sagaRepository.save(saga);
 
-        kafkaCommand.sendCreatePayment(new CreatePaymentCommand(saga.getId(),saga.getOrderId(),saga.getTotalAmount()));
+        kafkaCommand.sendCreatePayment(new CreatePaymentCommand(saga.getId(),saga.getOrderId(),saga.getUserId(),saga.getTotalAmount()));
     }
 
     public void onPaymentCreated(PaymentCreatedEvent event) {
@@ -100,12 +99,9 @@ public class SagaOrchestratorService {
         saga.setState(SagaState.AWAIT_PAYMENT);
         saga.setPaymentId(event.paymentId());
         sagaRepository.save(saga);
-
-        //TODO вроде не надо вебхук будет все делать
-        //kafkaCommand.sendAwaitPayment(new AwaitPaymentCommand(saga.getId()));
     }
 
-    public void onPaymentSuccess(PaymentAwaitEvent event){//ПЕРЕМЕНОВАТЬ НАДО ВЕЗДЕ БЕЗ AWAIT_PAYMENT
+    public void onPaymentSuccess(PaymentSuccessEvent event){//ПЕРЕМЕНОВАТЬ НАДО ВЕЗДЕ БЕЗ AWAIT_PAYMENT
         SagaEntity saga = loadSaga(event.sagaId());
         if(isStepMismatch(saga, SagaState.AWAIT_PAYMENT)) return;
 
@@ -185,7 +181,6 @@ public class SagaOrchestratorService {
         Collections.reverse(steps);
         for (SagaStep step : steps) {
             switch (step) {
-                //TODO пройтись по всем и отправь компенсирующие
                 case SagaStep.RESERVE_STOCK:
                     saga.setState(SagaState.COMPENSATING_STOCK);
                     sagaRepository.save(saga);
@@ -216,8 +211,8 @@ public class SagaOrchestratorService {
                     saga.setState(SagaState.COMPENSATING_PAYMENT);
                     sagaRepository.save(saga);
                     log.info("saga={} Компенсация: возврат платежа ", saga.getId());
-                    kafkaCommand.sendAwaitPaymentFailed(
-                            new AwaitPaymentFailedCommand(saga.getId(),saga.getPaymentId())//Вернуть деньги
+                    kafkaCommand.sendPaymentFailed(
+                            new PaymentFailedCommand(saga.getId(),saga.getPaymentId())//Вернуть деньги
                     );
                     break;
                 case SagaStep.UPDATE_ORDER_STATUS:

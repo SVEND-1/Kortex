@@ -187,7 +187,7 @@ public class YooKassaManager {
         }
     }
 
-    public Payment createYooKassaPayment(PaymentProcessor paymentProcessor, String idempotencyKey,String summa,Long orderId) {
+    public Payment createYooKassaPayment(PaymentProcessor paymentProcessor, String idempotencyKey,String summa,Long orderId,String sagaId) {
         try {
             Amount amount = Amount.builder()
                     .value(summa)
@@ -199,11 +199,16 @@ public class YooKassaManager {
                     .returnUrl(RETURN_URL)
                     .build();
 
+            Map<String, String> metadata = Map.of(
+                    "orderId", orderId.toString(),
+                    "sagaId", sagaId
+            );
+
             Payment payment = Payment.builder()
                     .amount(amount)
                     .description("Оплата заказа в Kortex")
                     .confirmation(confirmation)
-                    .metadata(Map.of("orderId", orderId.toString()))
+                    .metadata(metadata)
                     .capture(true)
                     .build();
 

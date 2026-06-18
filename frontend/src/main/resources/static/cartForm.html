@@ -53,8 +53,40 @@
         }
         .cart-header-actions {
             display: flex;
-            justify-content: flex-end;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
             margin-bottom: 20px;
+        }
+        .select-all-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+        .select-all-btn:hover {
+            background: #5a6268;
+        }
+        .cart-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .item-checkbox {
+            flex-shrink: 0;
+        }
+        .item-checkbox input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: #667eea;
         }
         .item-price {
             font-size: 18px;
@@ -71,6 +103,24 @@
             font-size: 14px;
             color: #667eea;
             font-weight: 500;
+        }
+        .checkout-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            transition: opacity 0.3s;
+        }
+        .checkout-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .checkout-btn:hover:not(:disabled) {
+            background: #5a6fd6;
         }
     </style>
 </head>
@@ -128,10 +178,15 @@
 
         <div id="cartWithItems" class="cart-with-items" style="display: none;">
             <div class="cart-header-actions">
+                <div>
+                    <button id="selectAllBtn" class="select-all-btn">Выбрать все</button>
+                    <button id="deselectAllBtn" class="select-all-btn" style="background: #dc3545;">Снять все</button>
+                </div>
                 <button id="clearCartBtn" class="clear-cart-btn">
                     <i class="fas fa-trash-alt"></i> Очистить корзину
                 </button>
             </div>
+
             <div class="cart-content">
                 <div class="cart-items" id="cartItems">
                     <div class="cart-loading" id="cartLoading">
@@ -155,14 +210,12 @@
                             <span id="finalTotal">0 ₽</span>
                         </div>
 
-                        <form action="/checkout" method="GET">
-                            <button type="submit" class="btn btn-primary checkout-btn" id="checkoutBtn" disabled>
-                                Перейти к оформлению
-                            </button>
-                        </form>
+                        <button class="checkout-btn" id="proceedCheckoutBtn" disabled>
+                            Перейти к оформлению
+                        </button>
 
                         <p style="font-size: 12px; color: #666; text-align: center; margin-top: 10px;">
-                            <i class="fas fa-info-circle"></i> При оформлении будут использованы данные из вашего профиля
+                            <i class="fas fa-info-circle"></i> Отметьте товары, которые хотите заказать
                         </p>
 
                         <a href="/" class="continue-shopping">Продолжить покупки</a>

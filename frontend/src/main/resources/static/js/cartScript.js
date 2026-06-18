@@ -27,7 +27,7 @@ function renderCart() {
     const $totalItemsText = $('#totalItemsText');
     const $totalPrice = $('#totalPrice');
     const $finalTotal = $('#finalTotal');
-    const $checkoutBtn = $('#checkoutBtn');
+    const $checkoutBtn = $('#proceedCheckoutBtn');
     const $clearCartBtn = $('#clearCartBtn');
 
     if (!items || items.length === 0) {
@@ -44,7 +44,7 @@ function renderCart() {
 
     $emptyCart.hide();
     $cartWithItems.show();
-    if ($checkoutBtn.length) $checkoutBtn.prop('disabled', false).css('opacity', '1');
+    if ($checkoutBtn.length) $checkoutBtn.prop('disabled', true).css('opacity', '0.6');
     if ($clearCartBtn.length) $clearCartBtn.show();
 
     if ($cartItemsContainer.length) {
@@ -67,6 +67,9 @@ function renderCart() {
 
             return `
             <div class="cart-item" data-item-id="${item.id}">
+                <div class="item-checkbox">
+                    <input type="checkbox" class="cart-item-checkbox" data-id="${item.id}" checked>
+                </div>
                 <div class="item-image">
                     <img src="${imageUrl}" alt="${escapeHtml(name)}" 
                          onerror="this.onerror=null;this.src='/images/product-img.png'">
@@ -90,12 +93,60 @@ function renderCart() {
         $cartItemsContainer.html(itemsHtml);
     }
 
-    const uniqueCount = cartManager.getUniqueCount();
-    if ($totalItemsText.length) $totalItemsText.text(`Товары (${uniqueCount})`);
-    if ($totalPrice.length) $totalPrice.text(formatPrice(total));
-    if ($finalTotal.length) $finalTotal.text(formatPrice(total));
-
+    updateSelectedSummary();
     attachCartEvents();
+    attachCheckboxEvents();
+}
+
+function updateSelectedSummary() {
+    const checked = $('.cart-item-checkbox:checked');
+    let total = 0;
+    let count = 0;
+    checked.each(function() {
+        const $item = $(this).closest('.cart-item');
+        const priceText = $item.find('.item-price').text().trim();
+        const price = parseFloat(priceText.replace(/[^0-9.,]/g, '').replace(',', '.')) || 0;
+        const quantity = parseInt($item.find('.quantity').text()) || 1;
+        total += price * quantity;
+        count += quantity;
+    });
+
+    $('#totalItemsText').text(`Товары (${count})`);
+    $('#totalPrice').text(formatPrice(total));
+    $('#finalTotal').text(formatPrice(total));
+
+    const $checkoutBtn = $('#proceedCheckoutBtn');
+    if (checked.length > 0) {
+        $checkoutBtn.prop('disabled', false).css('opacity', '1');
+    } else {
+        $checkoutBtn.prop('disabled', true).css('opacity', '0.6');
+    }
+}
+
+function attachCheckboxEvents() {
+    $('.cart-item-checkbox').off('change').on('change', function() {
+        updateSelectedSummary();
+    });
+
+    $('#selectAllBtn').off('click').on('click', function() {
+        $('.cart-item-checkbox').prop('checked', true);
+        updateSelectedSummary();
+    });
+    $('#deselectAllBtn').off('click').on('click', function() {
+        $('.cart-item-checkbox').prop('checked', false);
+        updateSelectedSummary();
+    });
+
+    $('#proceedCheckoutBtn').off('click').on('click', function() {
+        const selectedIds = $('.cart-item-checkbox:checked').map(function() {
+            return $(this).data('id');
+        }).get();
+        if (selectedIds.length === 0) {
+            alert('Выберите хотя бы один товар');
+            return;
+        }
+        window.location.href = `/checkout?ids=${selectedIds.join(',')}`;
+    });
 }
 
 function attachCartEvents() {
@@ -162,7 +213,7 @@ $(document).on('click', '#clearCartBtn', async function() {
     }
 });
 
-function showNotification(message, type = 'success') {
+function showNotification(message, type) {
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
     notification.textContent = message;

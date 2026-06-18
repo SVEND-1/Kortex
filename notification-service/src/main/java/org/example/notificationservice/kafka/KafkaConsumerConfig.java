@@ -33,6 +33,7 @@ public class KafkaConsumerConfig {
 
         JsonDeserializer<NotifyEvent> jsonDeserializer =
                 new JsonDeserializer<>(NotifyEvent.class, objectMapper);
+        jsonDeserializer.addTrustedPackages("*");
 
         return new DefaultKafkaConsumerFactory<>(
                 props,

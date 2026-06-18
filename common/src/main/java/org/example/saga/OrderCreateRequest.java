@@ -1,6 +1,4 @@
-package org.example.sagaorchestrator.dto;
-
-import org.example.saga.OrderItem;
+package org.example.saga;
 
 import java.math.BigDecimal;
 import java.util.List;
