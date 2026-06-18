@@ -1,4 +1,4 @@
-// profileScript.js — с модальным окном адреса, DaData, Leaflet, заявками на роли
+// profileScript.js — полный код с историей заказов, деталями, платежами и адресом
 
 document.addEventListener('DOMContentLoaded', async function() {
     try {
@@ -6,8 +6,12 @@ document.addEventListener('DOMContentLoaded', async function() {
         initModals();
         await loadUserProfile();
         await loadUserRoleRequests();
+        await loadUserOrders();
         hideOrdersSection();
         initAddressModal();
+        setupOrdersTabTrigger();
+        setupPaymentsTabTrigger();
+        setupPaginationButtons();
     } catch (error) {
         console.error('Ошибка инициализации:', error);
         showNotification('Не удалось загрузить профиль', 'error');
@@ -17,7 +21,9 @@ document.addEventListener('DOMContentLoaded', async function() {
 // ============ Константы ============
 const API = {
     profile: '/api/users',
-    roleRequests: '/api/users/role-request'
+    roleRequests: '/api/users/role-request',
+    orders: '/api/orders',
+    payments: '/api/payments'
 };
 const DADATA_TOKEN = 'be1da374113295d2e5a7f71025adb4986c7de957';
 
@@ -34,10 +40,15 @@ const REQUEST_STATUS = {
     'REJECTED': { text: '❌ Отклонено', class: 'rejected' }
 };
 
+let ordersLoaded = false;
+let paymentsLoaded = false;
+let currentPaymentPage = 0;
+const PAYMENT_PAGE_SIZE = 5;
+let totalPaymentPages = 0;
+
 // ============ Вспомогательная функция очистки названия региона ============
 function cleanRegionName(regionWithType) {
     if (!regionWithType) return '';
-    // Убираем типовые слова: республика, респ, область, обл, край, г., город и т.д.
     const cleaned = regionWithType
         .replace(/^(республика|респ)\s+/i, '')
         .replace(/^(область|обл)\s+/i, '')
@@ -79,7 +90,6 @@ function renderProfile(user) {
     const addressString = [regionClean, addr.city, addr.street, addr.house].filter(Boolean).join(', ') || 'Не указан';
     document.getElementById('currentAddressDisplay').textContent = addressString;
 
-    // Сохраняем в скрытые поля
     document.getElementById('profileRegion').value = addr.region || '';
     document.getElementById('profileCity').value = addr.city || '';
     document.getElementById('profileStreet').value = addr.street || '';
@@ -175,7 +185,7 @@ document.getElementById('personalForm')?.addEventListener('submit', async (e) =>
         const response = await fetch(API.profile, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, email }), // только имя и email
+            body: JSON.stringify({ name, email }),
             credentials: 'include'
         });
         if (response.ok) {
@@ -377,7 +387,6 @@ function initAddressModal() {
     if (!modal) return;
 
     openBtn?.addEventListener('click', () => {
-        // Загружаем текущие данные из скрытых полей
         const region = document.getElementById('profileRegion').value;
         const city = document.getElementById('profileCity').value;
         const street = document.getElementById('profileStreet').value;
@@ -441,7 +450,6 @@ function initAddressModal() {
             });
             if (response.ok) {
                 showNotification('✅ Адрес обновлён', 'success');
-                // Обновляем скрытые поля на главной
                 document.getElementById('profileRegion').value = region;
                 document.getElementById('profileCity').value = city;
                 document.getElementById('profileStreet').value = street;
@@ -449,7 +457,6 @@ function initAddressModal() {
                 document.getElementById('profileApartment').value = apartment;
                 document.getElementById('profileLat').value = lat;
                 document.getElementById('profileLon').value = lon;
-                // Обновляем отображение адреса
                 const regionClean = cleanRegionName(region);
                 const addressString = [regionClean, city, street, house].filter(Boolean).join(', ') || 'Не указан';
                 document.getElementById('currentAddressDisplay').textContent = addressString;
@@ -599,6 +606,249 @@ function initModalDadata() {
     }
 }
 
+// ============ Загрузка заказов ============
+async function loadUserOrders() {
+    const container = document.getElementById('ordersList');
+    if (!container) return;
+
+    try {
+        const response = await fetch(API.orders, {
+            credentials: 'include'
+        });
+
+        if (response.status === 401) {
+            container.innerHTML = `<div class="no-orders">🔒 Авторизуйтесь для просмотра заказов</div>`;
+            return;
+        }
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        let orders = data;
+
+        if (!Array.isArray(orders)) {
+            if (data && data.content && Array.isArray(data.content)) {
+                orders = data.content;
+            } else {
+                console.warn('Получены не массив, а объект:', data);
+                orders = [];
+            }
+        }
+
+        renderOrders(orders);
+        updateOrderStats(orders ? orders.length : 0);
+        ordersLoaded = true;
+    } catch (err) {
+        console.error('Ошибка загрузки заказов:', err);
+        container.innerHTML = `<div class="no-orders">❌ Не удалось загрузить заказы</div>`;
+    }
+}
+
+function renderOrders(orders) {
+    const container = document.getElementById('ordersList');
+    if (!container) return;
+
+    if (!Array.isArray(orders) || orders.length === 0) {
+        container.innerHTML = `<div class="no-orders">🛒 У вас пока нет заказов</div>`;
+        return;
+    }
+
+    container.innerHTML = orders.map(order => {
+        const statusClass = `status-${order.status}`;
+        const statusText = getStatusText(order.status);
+        const itemsHtml = (order.items || []).map(item => `
+            <div class="order-item-row">
+                <img class="order-item-image" src="${item.image ? '/uploads/images/' + item.image : '/images/no-image.png'}" alt="${escapeHtml(item.nameProduct)}" onerror="this.src='/images/no-image.png'">
+                <span class="order-item-name">${escapeHtml(item.nameProduct)}</span>
+                <span class="order-item-price">${item.count} шт. × ${formatPrice(item.priceProduct)}</span>
+            </div>
+        `).join('');
+
+        return `
+            <div class="order-card">
+                <div class="order-header">
+                    <span class="order-id">Заказ #${order.orderId}</span>
+                    <span class="order-date">${formatDate(order.orderDate)}</span>
+                    <span class="order-status ${statusClass}">${statusText}</span>
+                </div>
+                <div class="order-items-list">
+                    ${itemsHtml}
+                </div>
+                <div class="order-total">
+                    <span>Итого: ${formatPrice(order.totalAmount)}</span>
+                    <button class="btn btn-secondary" style="margin-left: 15px; padding: 4px 12px;" onclick='openOrderDetail(${JSON.stringify(order)})'>Подробнее</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// ============ Детали заказа ============
+function openOrderDetail(order) {
+    const modal = document.getElementById('orderDetailModal');
+    if (!modal) return;
+
+    document.getElementById('orderDetailTitle').textContent = `Заказ #${order.orderId}`;
+
+    const statusText = getStatusText(order.status);
+    const statusClass = `status-${order.status}`;
+    const orderDate = formatDate(order.orderDate);
+    const total = formatPrice(order.totalAmount);
+
+    let itemsHtml = '';
+    if (order.items && order.items.length > 0) {
+        itemsHtml = order.items.map(item => `
+            <div class="order-item-row">
+                <img class="order-item-image" src="${item.image ? '/uploads/images/' + item.image : '/images/no-image.png'}" alt="${escapeHtml(item.nameProduct)}" onerror="this.src='/images/no-image.png'">
+                <span class="order-item-name">${escapeHtml(item.nameProduct)}</span>
+                <span class="order-item-price">${item.count} шт. × ${formatPrice(item.priceProduct)}</span>
+            </div>
+        `).join('');
+    } else {
+        itemsHtml = '<p style="color:#666;">Нет товаров</p>';
+    }
+
+    const address = order.address ? `${order.address.city}, ${order.address.street}, ${order.address.house}` : '';
+    const comment = order.comment || '';
+    const paymentId = order.paymentId || '';
+
+    const html = `
+        <div style="margin-bottom: 15px;">
+            <div><strong>Дата заказа:</strong> ${orderDate}</div>
+            <div><strong>Статус:</strong> <span class="order-status ${statusClass}">${statusText}</span></div>
+            ${address ? `<div><strong>Адрес доставки:</strong> ${escapeHtml(address)}</div>` : ''}
+            ${comment ? `<div><strong>Комментарий:</strong> ${escapeHtml(comment)}</div>` : ''}
+            ${paymentId ? `<div><strong>ID платежа:</strong> ${escapeHtml(paymentId)}</div>` : ''}
+        </div>
+        <div style="margin-top: 15px;">
+            <h4>Товары:</h4>
+            <div class="order-items-list">${itemsHtml}</div>
+        </div>
+        <div style="margin-top: 15px; text-align: right; font-weight: bold; font-size: 18px;">
+            Итого: ${total}
+        </div>
+    `;
+
+    document.getElementById('orderDetailContent').innerHTML = html;
+    modal.style.display = 'flex';
+}
+
+function closeOrderDetail() {
+    const modal = document.getElementById('orderDetailModal');
+    if (modal) modal.style.display = 'none';
+}
+
+// ============ Загрузка платежей ============
+async function loadUserPayments(page = 0, size = PAYMENT_PAGE_SIZE) {
+    const container = document.getElementById('paymentsList');
+    if (!container) return;
+
+    try {
+        const response = await fetch(`${API.payments}?page=${page}&size=${size}`, {
+            credentials: 'include'
+        });
+
+        if (response.status === 401) {
+            container.innerHTML = `<div class="no-payments">🔒 Авторизуйтесь для просмотра платежей</div>`;
+            return;
+        }
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        renderPayments(data);
+        currentPaymentPage = data.number || 0;
+        totalPaymentPages = data.totalPages || 0;
+        updatePaymentPagination();
+        paymentsLoaded = true;
+    } catch (err) {
+        console.error('Ошибка загрузки платежей:', err);
+        container.innerHTML = `<div class="no-payments">❌ Не удалось загрузить платежи</div>`;
+    }
+}
+
+function renderPayments(pageData) {
+    const container = document.getElementById('paymentsList');
+    if (!container) return;
+
+    const payments = pageData.content || [];
+    if (!Array.isArray(payments) || payments.length === 0) {
+        container.innerHTML = `<div class="no-payments">💳 У вас пока нет платежей</div>`;
+        return;
+    }
+
+    container.innerHTML = payments.map(payment => {
+        const statusClass = payment.status === 'succeeded' ? 'succeeded' :
+            payment.status === 'pending' ? 'pending' : 'canceled';
+        const statusText = payment.status === 'succeeded' ? 'Успешно' :
+            payment.status === 'pending' ? 'В обработке' : 'Отменён';
+        const date = formatDate(payment.createdAt);
+        const amount = payment.value ? parseFloat(payment.value).toFixed(2) : '0.00';
+        const description = payment.description || 'Оплата заказа';
+
+        return `
+            <div class="payment-card">
+                <div>
+                    <div class="payment-id">ID: ${payment.id}</div>
+                    <div class="payment-description" style="color: #555;">${escapeHtml(description)}</div>
+                </div>
+                <div>
+                    <div class="payment-amount">${amount} ₽</div>
+                    <div class="payment-date">${date}</div>
+                </div>
+                <div>
+                    <span class="payment-status ${statusClass}">${statusText}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function updatePaymentPagination() {
+    const paginationDiv = document.getElementById('paymentsPagination');
+    if (!paginationDiv) return;
+
+    if (totalPaymentPages <= 1) {
+        paginationDiv.style.display = 'none';
+        return;
+    }
+
+    paginationDiv.style.display = 'flex';
+    document.getElementById('pageInfo').textContent = `Страница ${currentPaymentPage + 1} из ${totalPaymentPages}`;
+    document.getElementById('prevPageBtn').disabled = (currentPaymentPage === 0);
+    document.getElementById('nextPageBtn').disabled = (currentPaymentPage >= totalPaymentPages - 1);
+}
+
+// ============ Настройка триггеров вкладок ============
+function setupOrdersTabTrigger() {
+    // можно использовать для ленивой загрузки, но мы уже загружаем при старте
+}
+
+function setupPaymentsTabTrigger() {
+    const paymentsTabBtn = document.querySelector('.tab-button[data-tab="payments"]');
+    if (!paymentsTabBtn) return;
+    paymentsTabBtn.addEventListener('click', function() {
+        if (!paymentsLoaded) {
+            loadUserPayments(0, PAYMENT_PAGE_SIZE);
+        }
+    });
+}
+
+function setupPaginationButtons() {
+    document.getElementById('prevPageBtn')?.addEventListener('click', () => {
+        if (currentPaymentPage > 0) {
+            loadUserPayments(currentPaymentPage - 1, PAYMENT_PAGE_SIZE);
+        }
+    });
+    document.getElementById('nextPageBtn')?.addEventListener('click', () => {
+        if (currentPaymentPage < totalPaymentPages - 1) {
+            loadUserPayments(currentPaymentPage + 1, PAYMENT_PAGE_SIZE);
+        }
+    });
+}
+
 // ============ Вспомогательные функции ============
 function initTabs() {
     const tabs = document.querySelectorAll('.tab-button');
@@ -614,8 +864,8 @@ function initTabs() {
 }
 
 function hideOrdersSection() {
-    const ordersSection = document.querySelector('.orders-history');
-    if (ordersSection) ordersSection.style.display = 'none';
+    const oldSection = document.querySelector('.orders-history');
+    if (oldSection) oldSection.style.display = 'none';
 }
 
 function formatDate(dateStr) {
@@ -627,6 +877,35 @@ function formatDate(dateStr) {
 function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/[&<>]/g, (m) => m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;'));
+}
+
+function formatPrice(price) {
+    if (price === undefined || price === null) return '0 ₽';
+    return new Intl.NumberFormat('ru-RU', {
+        style: 'currency',
+        currency: 'RUB',
+        minimumFractionDigits: 0
+    }).format(price);
+}
+
+function getStatusText(status) {
+    const map = {
+        'CREATED': 'Создан',
+        'AWAITING_PAYMENT': 'Ожидает оплаты',
+        'FAILED_PAYMENT': 'Ошибка оплаты',
+        'PENDING': 'В обработке',
+        'DISPATCHED': 'Отправлен',
+        'DELIVERED_TO_DESTINATION': 'Доставлен в пункт',
+        'CANCELLED': 'Отменён',
+        'RETURNED': 'Возвращён',
+        'COMPLETED': 'Выполнен'
+    };
+    return map[status] || status;
+}
+
+function updateOrderStats(count) {
+    const statValue = document.querySelector('.stat-value');
+    if (statValue) statValue.textContent = count || 0;
 }
 
 function showNotification(msg, type = 'success') {

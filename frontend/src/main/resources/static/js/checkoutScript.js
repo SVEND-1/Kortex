@@ -5,6 +5,11 @@ document.addEventListener('DOMContentLoaded', function() {
 let selectedCartIds = [];
 let cartItems = [];
 let userData = null;
+let paymentPollingInterval = null;
+let paymentPollingAttempts = 0;
+
+const MAX_POLLING_ATTEMPTS = 30; // 30 секунд (каждую секунду)
+const POLLING_INTERVAL = 1000;   // 1 секунда
 
 function initCheckout() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -108,7 +113,7 @@ async function loadUserAndCart() {
     }
 }
 
-// Функция enrichItemsWithProductDetails (копия из cartManager)
+// Функция enrichItemsWithProductDetails
 async function enrichItemsWithProductDetails() {
     const uniqueProductIds = [...new Set(cartItems.map(item => item.productId).filter(id => id))];
     const productPromises = uniqueProductIds.map(async (productId) => {
@@ -206,23 +211,20 @@ function setupEventHandlers() {
     const submitBtn = document.getElementById('submit-order-btn');
     submitBtn.addEventListener('click', handleSubmitOrder);
 
-    // Валидация только согласия (других полей нет)
     document.getElementById('agree-terms').addEventListener('change', function() {
-        // Можно дополнительно проверять, но основная валидация в validateForm
+        // Валидация согласия
     });
 }
 
 function validateForm() {
     let isValid = true;
 
-    // Проверяем согласие
     const agree = document.getElementById('agree-terms');
     if (!agree || !agree.checked) {
         showError('Необходимо согласиться с условиями использования');
         isValid = false;
     }
 
-    // Проверяем наличие адреса (дополнительная защита)
     if (userData && (!userData.address || !userData.address.city)) {
         showError('Добавьте адрес доставки в профиле');
         isValid = false;
@@ -231,6 +233,7 @@ function validateForm() {
     return isValid;
 }
 
+// ---------- Основная функция оформления заказа ----------
 async function handleSubmitOrder(e) {
     e.preventDefault();
 
@@ -246,7 +249,7 @@ async function handleSubmitOrder(e) {
     const submitBtn = document.getElementById('submit-order-btn');
     const originalText = submitBtn.innerHTML;
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<span>Оформление...</span>';
+    submitBtn.innerHTML = '<span>⏳ Оформление...</span>';
 
     try {
         const response = await fetch('/api/orders', {
@@ -264,14 +267,89 @@ async function handleSubmitOrder(e) {
             throw new Error(err.error || `Ошибка ${response.status}`);
         }
 
-        alert('✅ Заказ успешно оформлен!');
-        window.location.href = '/';
+        // 🔥 Бэкенд возвращает просто число (Long) – ID заказа
+        const orderId = await response.text(); // так как ответ – plain text
+        // либо если возвращает JSON, но у вас ResponseEntity<Long> – это строка
+        // Если возвращаете ResponseEntity<Long>, то .text() вернёт "5"
+        // Можно также использовать response.json(), если вернёте объект
+
+        if (!orderId || orderId.trim() === '') {
+            throw new Error('Не получен ID заказа');
+        }
+
+        // Показываем сообщение о перенаправлении
+        submitBtn.innerHTML = '<span>⏳ Перенаправление на оплату...</span>';
+
+        // Запускаем опрос для получения ссылки на оплату
+        startPaymentPolling(parseInt(orderId));
+
     } catch (error) {
         console.error('Ошибка оформления:', error);
         showError(error.message);
         submitBtn.disabled = false;
         submitBtn.innerHTML = originalText;
     }
+}
+
+// ---------- Опрос для получения ссылки на оплату ----------
+function startPaymentPolling(orderId) {
+    // Очищаем предыдущий интервал, если был
+    if (paymentPollingInterval) {
+        clearInterval(paymentPollingInterval);
+        paymentPollingInterval = null;
+    }
+
+    paymentPollingAttempts = 0;
+    const submitBtn = document.getElementById('submit-order-btn');
+    const loader = document.getElementById('payment-loader');
+
+    // Показываем индикатор загрузки
+    if (loader) loader.style.display = 'block';
+    // Скрываем кнопку или делаем неактивной (уже disabled)
+
+    paymentPollingInterval = setInterval(async () => {
+        paymentPollingAttempts++;
+
+        try {
+            const response = await fetch(`/api/payments/${orderId}`, {
+                credentials: 'include'
+            });
+
+            if (response.ok) {
+                const paymentUrl = await response.text(); // эндпоинт возвращает строку URL
+                if (paymentUrl && paymentUrl.trim() !== '') {
+                    // Успех – перенаправляем
+                    clearInterval(paymentPollingInterval);
+                    paymentPollingInterval = null;
+                    if (loader) loader.style.display = 'none';
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<span>✅ Оплата</span>';
+
+                    // Открываем в новой вкладке
+                    window.open(paymentUrl, '_blank');
+                    // Показываем уведомление об успехе
+                    showSuccess('Переход на страницу оплаты...');
+                    return;
+                }
+            }
+            // Если ответ 404 или пустой – продолжаем ждать
+
+        } catch (error) {
+            console.warn('Ошибка при опросе платежа:', error);
+            // Не прерываем опрос, просто логируем
+        }
+
+        // Если превышено количество попыток – ошибка
+        if (paymentPollingAttempts >= MAX_POLLING_ATTEMPTS) {
+            clearInterval(paymentPollingInterval);
+            paymentPollingInterval = null;
+            if (loader) loader.style.display = 'none';
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = 'Оформить заказ';
+
+            showError('Не удалось получить ссылку на оплату. Попробуйте позже.');
+        }
+    }, POLLING_INTERVAL);
 }
 
 function showLoading() {
@@ -291,6 +369,14 @@ function showError(message) {
         modal.classList.add('active');
         document.body.style.overflow = 'hidden';
     }
+}
+
+function showSuccess(message) {
+    const modal = document.getElementById('success-modal');
+    const messageElement = document.getElementById('success-message');
+    if (messageElement) messageElement.textContent = message || 'Заказ успешно оформлен!';
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
 }
 
 function closeModal() {
@@ -328,4 +414,11 @@ document.addEventListener('click', function(e) {
 
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') closeModal();
+});
+
+// Очистка интервала при уходе со страницы
+window.addEventListener('beforeunload', function() {
+    if (paymentPollingInterval) {
+        clearInterval(paymentPollingInterval);
+    }
 });

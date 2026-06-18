@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.example.orderservice.api.dto.OrderCreateRequest;
 import org.example.orderservice.api.dto.OrderItemCreateRequest;
+import org.example.orderservice.api.dto.OrderResponseDTO;
 import org.example.orderservice.db.OrderStatus;
 import org.example.orderservice.domain.OrderService;
 import org.springframework.http.ResponseEntity;
@@ -21,26 +22,22 @@ public class OrderController {
 
     private final OrderService orderService;
 
-//    @GetMapping
-//    public ResponseEntity<?> getOrders() {
-//        return ResponseEntity.ok(orderService.getHistoryOrders());
-//    }
-//
-//    @Operation(summary = "Получить страницу заказа")
-//    @GetMapping("/me-create")
-//    public ResponseEntity<?> getMeCreateOrders() {
-//        return ResponseEntity.ok(orderService.getPageCreateOrder());
-//    }
+    @Operation(summary = "Получить историю заказов")
+    @GetMapping
+    public ResponseEntity<List<OrderResponseDTO>> getOrders(
+            @RequestHeader(value = "X-User-Id", required = false) Long userId
+    ) {
+        return ResponseEntity.ok(orderService.getHistoryOrders(userId));
+    }
 
     @Operation(summary = "Создать заказ")
     @PostMapping()
-    public ResponseEntity<Void> createOrder(
+    public ResponseEntity<Long> createOrder(
             @RequestBody OrderCreateRequest orderCreateRequest,
             @RequestHeader(value = "X-User-Id", required = false) Long userId
 
     ) {
-        orderService.create(userId,orderCreateRequest);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(orderService.create(userId,orderCreateRequest));
     }
 
     @Operation(summary = "Обновление статуса заказа")

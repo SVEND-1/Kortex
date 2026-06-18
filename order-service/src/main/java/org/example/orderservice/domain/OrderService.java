@@ -6,17 +6,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.orderservice.api.dto.AddressRestResponse;
 import org.example.orderservice.api.dto.OrderCreateRequest;
 import org.example.orderservice.api.dto.OrderItemCreateRequest;
+import org.example.orderservice.api.dto.OrderResponseDTO;
 import org.example.orderservice.db.Address;
 import org.example.orderservice.db.OrderEntity;
 import org.example.orderservice.db.OrderRepository;
 import org.example.orderservice.db.OrderStatus;
+import org.example.orderservice.domain.mapper.OrderMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-import java.util.NoSuchElementException;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
 @RequiredArgsConstructor
@@ -29,13 +30,27 @@ public class OrderService {
 //    private final CartMapper cartMapper;
     private final OrderCreateManager orderCreateManager;
 //    private final UserMapper userMapper;
-//    private final OrderMapper orderMapper;
+    private final OrderMapper orderMapper;
     private final UserClientService userClientService;
+
+
 
 
     //================================Controller Methods================================================
 
-    public void create(Long userId, OrderCreateRequest orderCreateRequest){
+    public List<OrderResponseDTO> getHistoryOrders(Long userId){//TODO Добавить паггинацию
+        try {
+            List<OrderEntity> orders = orderRepository.findAllByUserId(userId);
+            List<OrderResponseDTO> dtos = orderMapper.toDtoList(orders);
+            Collections.reverse(dtos);
+            return dtos;
+        }catch (Exception e) {
+            log.error("Не получилось получить историю заказов,ex={}", e.getMessage());
+            throw new RuntimeException(e);
+        }
+    }
+
+    public Long create(Long userId, OrderCreateRequest orderCreateRequest){
         AddressRestResponse rest = userClientService.getAddress(userId,userId);
         if(rest == null){
             log.warn("Для создание заказа необходим адрес");
@@ -48,8 +63,11 @@ public class OrderService {
 
         Address address = new Address(rest.region(), rest.city(),rest.street(),
                 rest.house(),rest.apartment());
-        orderCreateManager.createOrder(userId, address, orderCreateRequest.comment(), orderCreateRequest.request());
+        OrderEntity order = orderCreateManager.createOrder(userId, address, orderCreateRequest.comment(), orderCreateRequest.request());
+        return order.getId();
     }
+
+
 
     public void updateStatus(Long orderId, OrderStatus status){
         try {
@@ -67,14 +85,16 @@ public class OrderService {
         try {
             OrderEntity order = orderRepository.findById(orderId)
                     .orElseThrow(() -> new EntityNotFoundException("Заказ не найден"));
+
             if(!order.getUserId().equals(userId)){
                 log.warn("Пользователь не является владельцем заказа");
                 throw new IllegalArgumentException("Пользователь не является владельцем заказа");
             }
+
             order.setStatus(OrderStatus.valueOf(status.toUpperCase()));
             orderRepository.save(order);
         }catch (Exception e){
-            log.error("Не удалось обновить статус заказа={} на статус={},ex={}", orderId, status, e.getMessage());
+            log.error("Не удалось обновить статус через rest заказа={} на статус={},ex={}", orderId, status, e.getMessage());
             throw new RuntimeException("Не удалось обновить статус заказа",e);
         }
     }

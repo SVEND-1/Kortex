@@ -27,7 +27,6 @@ public class RedisConfig {
         template.setKeySerializer(new StringRedisSerializer());
         template.setHashKeySerializer(new StringRedisSerializer());
 
-        // Создаём копию ObjectMapper и включаем default typing
         ObjectMapper mapperWithTyping = objectMapper.copy();
         PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
                 .allowIfSubType(Object.class)

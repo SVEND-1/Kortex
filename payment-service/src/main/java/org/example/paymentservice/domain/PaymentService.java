@@ -13,6 +13,9 @@ import org.example.paymentservice.db.PaymentRepository;
 import org.example.paymentservice.domain.mapper.PaymentMapper;
 import org.example.paymentservice.domain.mapper.ReceiptMapper;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.loolzaaa.youkassa.client.ApiClient;
@@ -23,7 +26,10 @@ import ru.loolzaaa.youkassa.processors.ReceiptProcessor;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @RequiredArgsConstructor
 @Service
@@ -35,6 +41,8 @@ public class PaymentService {
     private final PaymentManager paymentManager;
     private final ReceiptManager receiptManager;
     private final ReceiptMapper receiptMapper;
+
+    public static Map<Long,String> paymentUrl = new ConcurrentHashMap<>();//TODO убрать сейчас проосто для теста
 
     @Value("${shop_id}")
     private String shopId;
@@ -59,14 +67,16 @@ public class PaymentService {
         log.info("YooKassa инициализирована");
     }
 
-    public PaymentResponse findPaymentDto(String paymentId,Long userId) {
-        isValidUser(paymentId,userId);
-        return paymentMapper.convertEntityToPaymentResponse(findPayment(paymentId));
-    }
-
-//    public PaymentPageResponse findAllPaymentsByUser(Long userId, int page, int size) {
-//        return paymentMapper.toPageResponse(paymentManager.findAllPaymentsByUser(userId,page,size));
+//    public PaymentResponse findPaymentDto(String paymentId,Long userId) {
+//        isValidUser(paymentId,userId);
+//        return paymentMapper.convertEntityToPaymentResponse(findPayment(paymentId));
 //    }
+
+    public PaymentPageResponse findAllPaymentsByUser(Long userId, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<PaymentEntity> paymentEntities = paymentRepository.findAllByUserId(userId, pageable);
+        return paymentMapper.toPageResponse(paymentEntities);
+    }
 
 //    public ReceiptResponse findReceipt(String paymentId){
 //        isValidUser(paymentId);
@@ -83,6 +93,7 @@ public class PaymentService {
 
             paymentManager.savePayment(idempotencyKey,saved,yookassaAmount,userId);
 
+            paymentUrl.put(orderId,saved.getConfirmation().getConfirmationUrl());
             log.info("ССЫЛКА: {}", saved.getConfirmation().getConfirmationUrl());
             return new PaymentCreateResponse(
                     saved.getId(),
