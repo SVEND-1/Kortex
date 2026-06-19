@@ -4,8 +4,8 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.cartservice.api.ProductFeignClient;
-import org.example.cartservice.api.dto.response.ProductResponse;
 import org.example.cartservice.db.ProductCacheRepository;
+import org.example.rest.ProductResponse;
 import org.springframework.stereotype.Service;
 
 @Slf4j

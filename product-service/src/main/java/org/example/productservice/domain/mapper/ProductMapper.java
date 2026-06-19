@@ -3,8 +3,8 @@ package org.example.productservice.domain.mapper;
 
 import org.example.productservice.api.dto.request.ProductUpdateRequest;
 import org.example.productservice.api.dto.response.ProductPageResponse;
-import org.example.productservice.api.dto.response.ProductResponse;
 import org.example.productservice.db.ProductEntity;
+import org.example.rest.ProductResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.MappingTarget;
 import org.springframework.data.domain.Page;

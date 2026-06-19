@@ -22,7 +22,7 @@ public class OrderEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private Long userId;
 
-    @JoinColumn(name = "courier_id")
+    @JoinColumn(name = "courier_id")//TODO возможно не надо будет
     private Long courierId;
 
     @Enumerated(EnumType.STRING)

@@ -3,22 +3,20 @@ package org.example.orderservice.domain;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.orderservice.api.dto.AddressRestResponse;
+import org.example.command.DeliveryCommand;
+import org.example.command.ItemsDelivery;
 import org.example.orderservice.api.dto.OrderCreateRequest;
-import org.example.orderservice.api.dto.OrderItemCreateRequest;
 import org.example.orderservice.api.dto.OrderResponseDTO;
-import org.example.orderservice.db.Address;
-import org.example.orderservice.db.OrderEntity;
-import org.example.orderservice.db.OrderRepository;
-import org.example.orderservice.db.OrderStatus;
+import org.example.orderservice.db.*;
 import org.example.orderservice.domain.mapper.OrderMapper;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.scheduling.annotation.Async;
+import org.example.rest.AddressRestResponse;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
+
+import static org.example.Topics.DELIVERY_CREATE_ORDER_COMMAND;
 
 @RequiredArgsConstructor
 @Slf4j
@@ -26,13 +24,14 @@ import java.util.concurrent.CompletableFuture;
 public class OrderService {
     private final OrderRepository orderRepository;
 //    private final UserService userService;
-    private final OrderCourierManager manager;
+    // private final OrderCourierManager manager;
 //    private final CartMapper cartMapper;
     private final OrderCreateManager orderCreateManager;
 //    private final UserMapper userMapper;
     private final OrderMapper orderMapper;
     private final UserClientService userClientService;
 
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
 
 
@@ -50,6 +49,7 @@ public class OrderService {
         }
     }
 
+    @Transactional
     public Long create(Long userId, OrderCreateRequest orderCreateRequest){
         AddressRestResponse rest = userClientService.getAddress(userId,userId);
         if(rest == null){
@@ -64,17 +64,25 @@ public class OrderService {
         Address address = new Address(rest.region(), rest.city(),rest.street(),
                 rest.house(),rest.apartment());
         OrderEntity order = orderCreateManager.createOrder(userId, address, orderCreateRequest.comment(), orderCreateRequest.request());
+
+        sendDeliveryCommand(order.getId(),userId,rest,order.getOrderItems(), orderCreateRequest.comment());
         return order.getId();
     }
 
+    private void sendDeliveryCommand(Long orderId, Long userId, AddressRestResponse address, List<OrderItemEntity> itemEntities,String comment){
+        List<ItemsDelivery> items = itemEntities.stream().map(el -> new ItemsDelivery(el.getId(),el.getProductId(),el.getQuantity())).toList();
+        DeliveryCommand deliveryCommand = new DeliveryCommand(orderId,userId,address,items,comment);
+        kafkaTemplate.send(DELIVERY_CREATE_ORDER_COMMAND,String.valueOf(orderId),deliveryCommand);
+    }
 
 
-    public void updateStatus(Long orderId, OrderStatus status){
+    public void updateStatusSaga(Long orderId, OrderStatus status){
         try {
             OrderEntity order = orderRepository.findById(orderId)
                     .orElseThrow(() -> new EntityNotFoundException("Заказ не найден"));
             order.setStatus(status);
             orderRepository.save(order);
+            //Отправка в Kafka чтобы курьеры могли брать заказа, ключ в кафка положить orderId
         }catch (Exception e){
             log.error("Не удалось обновить статус заказа={} на статус={},ex={}", orderId, status, e.getMessage());
             throw new RuntimeException("Не удалось обновить статус заказа",e);
@@ -102,6 +110,7 @@ public class OrderService {
     public void deleteOrder(Long orderId){
         try {
             orderRepository.deleteById(orderId);
+            //TODO удаление заказа с доставки отправить команду
         }catch (Exception e){
             log.error("Не удалось удалить заказ,ex={}", e.getMessage());
             throw new RuntimeException(e.getMessage());

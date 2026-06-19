@@ -1,9 +1,9 @@
-package org.example.orderservice.api.dto;
+package org.example.rest;
 
 import java.math.BigDecimal;
 import java.util.List;
 
-public record ProductResponse(//ВЫНЕСТИ В Common
+public record ProductResponse(
                               Long id,
                               String name,
                               String description,
@@ -11,4 +11,8 @@ public record ProductResponse(//ВЫНЕСТИ В Common
                               Integer count,
                               String category,
                               List<String> images
-) {}
+) {
+    public ProductResponse withImages(List<String> newImages) {
+        return new ProductResponse(id, name, description, price, count, category, newImages);
+    }
+}

@@ -1,4 +1,4 @@
-package org.example.orderservice.api.dto;
+package org.example.rest;
 
 import org.example.kafkaEvent.Role;
 

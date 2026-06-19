@@ -1,14 +1,13 @@
-package org.example.cartservice.api.dto.response;
+package org.example.deliveryservice.api.dto.response;
 
 import java.math.BigDecimal;
 import java.util.List;
 
-public record ProductResponse(//ВЫНЕСТИ В Common
+public record DeliveryProductResponse(
         Long id,
         String name,
-        String description,
         BigDecimal price,
-        Integer count,
         String category,
         List<String> images
-) {}
+) {
+}

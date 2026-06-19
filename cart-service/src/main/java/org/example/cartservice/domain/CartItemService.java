@@ -3,11 +3,11 @@ package org.example.cartservice.domain;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.cartservice.api.dto.response.ProductResponse;
 import org.example.cartservice.db.Cart;
 import org.example.cartservice.db.CartItem;
 import org.example.cartservice.db.CartItemRepository;
 import org.example.cartservice.domain.exeptions.AccessDeniedException;
+import org.example.rest.ProductResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

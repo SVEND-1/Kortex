@@ -1,8 +1,8 @@
 package org.example.userservice.domain.mapper;
 
 import org.example.kafkaEvent.UserRegisterEvent;
+import org.example.rest.UserRestResponse;
 import org.example.userservice.api.dto.response.UserResponse;
-import org.example.userservice.api.dto.response.UserRestResponse;
 import org.example.userservice.db.UserEntity;
 import org.mapstruct.Mapper;
 

@@ -1,5 +1,7 @@
 package org.example.productservice.api.dto.response;
 
+import org.example.rest.ProductResponse;
+
 import java.util.List;
 
 public record ProductPageResponse(

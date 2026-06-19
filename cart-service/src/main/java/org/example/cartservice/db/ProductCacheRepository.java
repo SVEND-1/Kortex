@@ -2,7 +2,7 @@ package org.example.cartservice.db;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.cartservice.api.dto.response.ProductResponse;
+import org.example.rest.ProductResponse;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Repository;
 

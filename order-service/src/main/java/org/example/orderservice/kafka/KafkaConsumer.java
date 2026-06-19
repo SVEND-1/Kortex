@@ -24,7 +24,7 @@ public class KafkaConsumer {
     @KafkaListener(topics = ORDER_STATUS_COMMAND,groupId = "order-service")
     public void handlerOderStatusCommand(UpdateOrderStatusCommand command) {
         try {
-            orderService.updateStatus(command.orderId(), OrderStatus.PENDING);
+            orderService.updateStatusSaga(command.orderId(), OrderStatus.PENDING);
 
             OrderStatusUpdatedEvent event = new OrderStatusUpdatedEvent(command.sagaId());
             kafkaTemplate.send(ORDER_STATUS_APPROVE_EVENT,command.sagaId(),event);

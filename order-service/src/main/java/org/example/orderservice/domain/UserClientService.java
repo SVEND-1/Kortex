@@ -3,7 +3,7 @@ package org.example.orderservice.domain;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.orderservice.api.UserFeignClient;
-import org.example.orderservice.api.dto.AddressRestResponse;
+import org.example.rest.AddressRestResponse;
 import org.springframework.stereotype.Service;
 
 @Slf4j

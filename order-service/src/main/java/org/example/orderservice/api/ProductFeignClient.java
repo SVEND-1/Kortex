@@ -1,6 +1,6 @@
 package org.example.orderservice.api;
 
-import org.example.orderservice.api.dto.ProductResponse;
+import org.example.rest.ProductResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

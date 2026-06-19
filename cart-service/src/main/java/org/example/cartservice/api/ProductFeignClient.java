@@ -1,6 +1,6 @@
 package org.example.cartservice.api;
 
-import org.example.cartservice.api.dto.response.ProductResponse;
+import org.example.rest.ProductResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

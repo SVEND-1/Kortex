@@ -1,4 +1,4 @@
-package org.example.userservice.api.dto.response;
+package org.example.rest;
 
 public record AddressRestResponse(
         String region,
