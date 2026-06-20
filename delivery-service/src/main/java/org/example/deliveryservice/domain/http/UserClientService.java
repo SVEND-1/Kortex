@@ -1,8 +1,8 @@
-package org.example.deliveryservice.domain;
+package org.example.deliveryservice.domain.http;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.deliveryservice.api.UserFeignClient;
+import org.example.deliveryservice.api.feignClient.UserFeignClient;
 import org.example.rest.AddressRestResponse;
 import org.springframework.stereotype.Service;
 

@@ -11,11 +11,9 @@ import java.util.List;
 @Repository
 public interface OrderItemRepository extends JpaRepository<OrderItemEntity, Long> {
 
-    @EntityGraph(attributePaths = {"product"})
     @Query("SELECT DISTINCT oi FROM OrderItemEntity oi WHERE oi.order.id = :orderId")
     List<OrderItemEntity> findByOrderId(@Param("orderId") Long orderId);
 
-    @EntityGraph(attributePaths = {"product", "order"})
     @Query("SELECT DISTINCT oi FROM OrderItemEntity oi WHERE oi.order.id IN :orderIds")
     List<OrderItemEntity> findByOrderIds(@Param("orderIds") List<Long> orderIds);
 }

@@ -1,4 +1,4 @@
-package org.example.deliveryservice.api;
+package org.example.deliveryservice.api.feignClient;
 
 import org.example.rest.ProductResponse;
 import org.springframework.cloud.openfeign.FeignClient;

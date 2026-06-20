@@ -4,10 +4,10 @@ package org.example.deliveryservice.domain;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.command.ItemsDelivery;
-import org.example.deliveryservice.api.dto.response.DeliveryProductResponse;
-import org.example.deliveryservice.api.dto.response.OrderItemCreateRequest;
+import org.example.deliveryservice.db.OrderEntity;
 import org.example.deliveryservice.db.OrderItemEntity;
 import org.example.deliveryservice.db.OrderItemRepository;
+import org.example.deliveryservice.domain.http.ProductClientService;
 import org.example.rest.ProductResponse;
 import org.springframework.stereotype.Service;
 
@@ -23,7 +23,7 @@ public class OrderItemService {
     private final OrderItemRepository orderItemRepository;
     private final ProductClientService productClientService;
 
-    public List<OrderItemEntity> createItems(Long orderId,List<ItemsDelivery> request) {
+    public List<OrderItemEntity> createItems(OrderEntity order, List<ItemsDelivery> request) {
         try {
             List<OrderItemEntity> itemEntities = new ArrayList<>();
 
@@ -32,10 +32,13 @@ public class OrderItemService {
                         .id(item.itemId())
                         .productId(item.productId())
                         .quantity(item.quantity())
-                        .price(calculatePrice(item.productId(),item.quantity()))//TODO тут по моему цена продукта должна быть
+                        .price(calculatePrice(item.productId(),item.quantity()))//TODO тут по моему цена продукта должна быть,
+                        //TODO но по факту считает общую цену item я не помню что я хотел изначально когда делал бд
+                        .order(order)
                         .build();
                 itemEntities.add(itemEntity);
             }
+            orderItemRepository.saveAll(itemEntities);
 
             return itemEntities;
         }catch (Exception e){

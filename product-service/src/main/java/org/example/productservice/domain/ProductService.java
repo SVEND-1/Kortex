@@ -58,7 +58,7 @@ public class ProductService {
     //            }
     //        });
 
-    @Transactional(isolation = Isolation.SERIALIZABLE)
+    @Transactional()
     public void productSubtractQuantity(Long productId, int quantity) {//TODO тут в кафка при создание заказа
         try {
             ProductEntity product = getByIdEntity(productId);
@@ -74,7 +74,8 @@ public class ProductService {
         }
     }
 
-    @Transactional(isolation = Isolation.SERIALIZABLE)
+    //АСИНХРОНО ДЕЛАТЬ
+    @Transactional()
     public void productAddQuantity(Long productId, int quantity) {
         try {
             ProductEntity product = getByIdEntity(productId);
