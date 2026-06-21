@@ -6,12 +6,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.common.errors.ApiException;
 import org.example.paymentservice.api.dto.response.payment.PaymentCreateResponse;
 import org.example.paymentservice.api.dto.response.payment.PaymentPageResponse;
-import org.example.paymentservice.api.dto.response.payment.PaymentResponse;
 import org.example.paymentservice.api.exception.PaymentOwnershipException;
 import org.example.paymentservice.db.PaymentEntity;
 import org.example.paymentservice.db.PaymentRepository;
 import org.example.paymentservice.domain.mapper.PaymentMapper;
 import org.example.paymentservice.domain.mapper.ReceiptMapper;
+import org.example.rest.OrderRestResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -26,7 +26,7 @@ import ru.loolzaaa.youkassa.processors.ReceiptProcessor;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,12 +37,14 @@ import java.util.concurrent.ConcurrentHashMap;
 public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final PaymentMapper paymentMapper;
-    private final YooKassaManager yooKassaManager;
+    private final PaymentYooKassaService yooKassaManager;
     private final PaymentManager paymentManager;
     private final ReceiptManager receiptManager;
     private final ReceiptMapper receiptMapper;
 
     public static Map<Long,String> paymentUrl = new ConcurrentHashMap<>();//TODO убрать сейчас проосто для теста
+    private final OrderClientService orderClientService;
+    //TODO у платежа есть orderId что позволит читать из юкасса путь по которому пройти  ну или добавить redis,но там продумать init метод чтобы в случае чего можно было получить все пути
 
     @Value("${shop_id}")
     private String shopId;
@@ -53,7 +55,6 @@ public class PaymentService {
     private ApiClient apiClient;
 
     private PaymentProcessor paymentProcessor;
-    private ReceiptProcessor receiptProcessor;
 
 
     @PostConstruct
@@ -62,7 +63,6 @@ public class PaymentService {
                 .configureBasicAuth(shopId, secretKey)
                 .build();
         paymentProcessor = new PaymentProcessor(apiClient);
-        receiptProcessor = new ReceiptProcessor(apiClient);
 
         log.info("YooKassa инициализирована");
     }
@@ -72,29 +72,27 @@ public class PaymentService {
 //        return paymentMapper.convertEntityToPaymentResponse(findPayment(paymentId));
 //    }
 
-    public PaymentPageResponse findAllPaymentsByUser(Long userId, int page, int size) {
+    public PaymentPageResponse findAllPaymentsByUser(Long userId, int page, int size) {//Сортировать по дате
         Pageable pageable = PageRequest.of(page, size);
         Page<PaymentEntity> paymentEntities = paymentRepository.findAllByUserId(userId, pageable);
         return paymentMapper.toPageResponse(paymentEntities);
     }
 
-//    public ReceiptResponse findReceipt(String paymentId){
-//        isValidUser(paymentId);
-//        return yooKassaManager.findReceiptDTO(receiptProcessor,paymentId);
-//    }
-
     @Transactional
     public PaymentCreateResponse createPayment(BigDecimal amount,Long orderId,Long userId,String sagaId) {
         String idempotencyKey = UUID.randomUUID().toString();
         try {
+            List<OrderRestResponse> order = orderClientService.getOrder(orderId);
+            amount = order.stream().map(el -> el.price().multiply(new BigDecimal(el.quantity())))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
             BigDecimal yookassaAmount = amount.setScale(2, RoundingMode.HALF_UP);
             String value = yookassaAmount.toPlainString();
             Payment saved = yooKassaManager.createYooKassaPayment(paymentProcessor,idempotencyKey,value,orderId,sagaId);
 
-            paymentManager.savePayment(idempotencyKey,saved,yookassaAmount,userId);
+            paymentManager.savePayment(idempotencyKey,saved,yookassaAmount,userId,orderId);
 
             paymentUrl.put(orderId,saved.getConfirmation().getConfirmationUrl());
-            log.info("ССЫЛКА: {}", saved.getConfirmation().getConfirmationUrl());
             return new PaymentCreateResponse(
                     saved.getId(),
                     saved.getConfirmation().getConfirmationUrl(),
@@ -106,27 +104,14 @@ public class PaymentService {
         }
     }
 
-//    @Transactional
-//    public ReceiptResponse createReceipt(String paymentId) {
-//        isValidUser(paymentId);
-//        try {
-//            Receipt saved = yooKassaManager.createYooKassaReceipt(receiptProcessor,paymentId);
-//            receiptManager.saveReceipt(paymentId,saved);
-//            return receiptMapper.convertReceiptToReceiptResponse(saved);
-//        } catch (ApiException e) {
-//            log.error("Ошибка создания чека для платежа {}: {}", paymentId, e.getMessage());
-//            throw new RuntimeException("Не удалось создать чек", e);
-//        }
-//    }
-
 
     public PaymentEntity findByPaymentId(String paymentId){
         return paymentRepository.findByPaymentId(paymentId);
     }
 
-    public Payment findPayment(String paymentId) {
-        return yooKassaManager.findPayment(paymentProcessor,paymentId);
-    }
+//    public Payment findPayment(String paymentId) {
+//        return yooKassaManager.findPayment(paymentProcessor,paymentId);
+//    }
 
     public PaymentEntity save(PaymentEntity payment) {
         return paymentRepository.save(payment);

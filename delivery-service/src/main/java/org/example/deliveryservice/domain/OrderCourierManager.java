@@ -35,7 +35,7 @@ public class OrderCourierManager {
     private final OrderClientService orderClientService;
     private final KafkaProducer kafkaProducer;
 
-    //TODO ПОДУМАТЬ НАД DTO ЧТО ВЫДАВАТЬ КУРЬЕРУ
+    //TODO ПОДУМАТЬ НАД DTO ЧТО ВЫДАВАТЬ КУРЬЕРУ, СДЕЛАТЬ РАСЧЕТ ЦЕНЫ ДРУГОЙ
     @Transactional
     public OrderPageResponse assignedCourierOrdersPage(OrdersSearchCourierFilter filter, String role, Long courierId) {
         try {

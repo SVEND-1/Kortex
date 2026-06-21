@@ -34,29 +34,32 @@ public class OrderCreateManager {
                             String message, List<OrderItemCreateRequest> request
     ){
         try {
-            List<OrderItemEntity> itemEntities = orderItemService.createItems(request);
-
-            BigDecimal totalAmount = itemEntities.stream()
-                    .map(OrderItemEntity::getPrice)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-
             OrderEntity order = OrderEntity.builder()
                     .userId(userId)
                     .status(OrderStatus.CREATED)
                     .address(address)
                     .message(message)
-                    .totalAmount(totalAmount)
-                    .orderItems(itemEntities)
                     .orderDate(LocalDateTime.now())
                     .build();
 
+            List<OrderItemEntity> itemEntities = orderItemService.createItems(request);
+            BigDecimal totalAmount = BigDecimal.ZERO;
+
+            for (OrderItemEntity item : itemEntities) {
+                item.setOrder(order);
+                totalAmount = totalAmount.add(item.getPrice());
+            }
+            order.setTotalAmount(totalAmount);
+            order.setOrderItems(itemEntities);
+
             OrderEntity saved = orderRepository.save(order);
 
+
             List<OrderItem> items = saved.getOrderItems().stream()
-                    .map(el -> new OrderItem(el.getProductId(),el.getQuantity()))
+                    .map(el -> new OrderItem(el.getProductId(), el.getQuantity()))
                     .toList();
 
-            kafkaProducer.sendStartSaga(new StartSagaEvent(userId,saved.getId(),items,totalAmount));
+            kafkaProducer.sendStartSaga(new StartSagaEvent(userId, saved.getId(), items, totalAmount));
             return saved;
         }catch (Exception e){
             log.error("Ошибка создание заказа,ex={}", e.getMessage());

@@ -28,12 +28,12 @@ public class OrderItemService {
             List<OrderItemEntity> itemEntities = new ArrayList<>();
 
             for (ItemsDelivery item : request) {
+                ProductResponse product = productClientService.getProduct(item.productId());
                 OrderItemEntity itemEntity = OrderItemEntity.builder()
                         .id(item.itemId())
                         .productId(item.productId())
                         .quantity(item.quantity())
-                        .price(calculatePrice(item.productId(),item.quantity()))//TODO тут по моему цена продукта должна быть,
-                        //TODO но по факту считает общую цену item я не помню что я хотел изначально когда делал бд
+                        .price(product.price())
                         .order(order)
                         .build();
                 itemEntities.add(itemEntity);

@@ -33,6 +33,10 @@ public class PaymentEntity {
     @JoinColumn(name = "user_id")
     private Long userId;
 
+    //todo добавить id заказа
+    @JoinColumn(name = "order_id")
+    private Long orderId;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 

@@ -1,4 +1,4 @@
-// profileScript.js — полный код с историей заказов, деталями, платежами и адресом
+// profileScript.js — исправленная версия с использованием данных из карточки, без отдельного GET /payments/{id}
 
 document.addEventListener('DOMContentLoaded', async function() {
     try {
@@ -46,7 +46,11 @@ let currentPaymentPage = 0;
 const PAYMENT_PAGE_SIZE = 5;
 let totalPaymentPages = 0;
 
-// ============ Вспомогательная функция очистки названия региона ============
+let currentUserId = null;
+let currentUserEmail = null;
+let currentPaymentId = null;
+
+// ============ Вспомогательная функция ============
 function cleanRegionName(regionWithType) {
     if (!regionWithType) return '';
     const cleaned = regionWithType
@@ -57,7 +61,7 @@ function cleanRegionName(regionWithType) {
     return cleaned.trim();
 }
 
-// ============ Загрузка и отображение профиля ============
+// ============ Профиль ============
 async function loadUserProfile() {
     try {
         const response = await fetch(API.profile, {
@@ -71,6 +75,8 @@ async function loadUserProfile() {
         }
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const user = await response.json();
+        currentUserId = user.id;
+        currentUserEmail = user.email;
         renderProfile(user);
     } catch (err) {
         console.error(err);
@@ -114,7 +120,7 @@ function renderDefaultProfile() {
     if (submitBtn) submitBtn.disabled = true;
 }
 
-// ============ Роли и кнопки ============
+// ============ Роли ============
 function updateRoleDisplay(role) {
     const info = ROLE_MAP[role] || ROLE_MAP.USER;
     const roleElements = document.querySelectorAll('.user-role-display');
@@ -325,11 +331,30 @@ function initModals() {
                 modal.style.display = 'none';
                 const form = modal.querySelector('form');
                 if (form) form.reset();
+                if (modal.id === 'paymentDetailModal') {
+                    const createBtn = document.getElementById('createReceiptBtn');
+                    if (createBtn) {
+                        createBtn.style.display = 'none';
+                        createBtn.disabled = false;
+                        createBtn.textContent = 'Создать чек';
+                    }
+                    currentPaymentId = null;
+                }
             }
         });
     });
+
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+            const createBtn = document.getElementById('createReceiptBtn');
+            if (createBtn) {
+                createBtn.style.display = 'none';
+                createBtn.disabled = false;
+                createBtn.textContent = 'Создать чек';
+            }
+            currentPaymentId = null;
+        }
     });
 }
 
@@ -374,7 +399,7 @@ window.closeDowngradeModal = () => {
     if (modal) modal.style.display = 'none';
 };
 
-// ============ Модальное окно для адреса ============
+// ============ Адрес ============
 let addressModal, map, marker;
 
 function initAddressModal() {
@@ -606,7 +631,7 @@ function initModalDadata() {
     }
 }
 
-// ============ Загрузка заказов ============
+// ============ Заказы ============
 async function loadUserOrders() {
     const container = document.getElementById('ordersList');
     if (!container) return;
@@ -659,7 +684,7 @@ function renderOrders(orders) {
         const statusText = getStatusText(order.status);
         const itemsHtml = (order.items || []).map(item => `
             <div class="order-item-row">
-                <img class="order-item-image" src="${item.image ? '/uploads/images/' + item.image : '/images/no-image.png'}" alt="${escapeHtml(item.nameProduct)}" onerror="this.src='/images/no-image.png'">
+                <img class="order-item-image" src="${item.image ? '/uploads/images/' + item.image : '/images/product-img.png'}" alt="${escapeHtml(item.nameProduct)}" onerror="this.src='/images/product-img.png'">
                 <span class="order-item-name">${escapeHtml(item.nameProduct)}</span>
                 <span class="order-item-price">${item.count} шт. × ${formatPrice(item.priceProduct)}</span>
             </div>
@@ -700,7 +725,7 @@ function openOrderDetail(order) {
     if (order.items && order.items.length > 0) {
         itemsHtml = order.items.map(item => `
             <div class="order-item-row">
-                <img class="order-item-image" src="${item.image ? '/uploads/images/' + item.image : '/images/no-image.png'}" alt="${escapeHtml(item.nameProduct)}" onerror="this.src='/images/no-image.png'">
+                <img class="order-item-image" src="${item.image ? '/uploads/images/' + item.image : '/images/product-img.png'}" alt="${escapeHtml(item.nameProduct)}" onerror="this.src='/images/product-img.png'">
                 <span class="order-item-name">${escapeHtml(item.nameProduct)}</span>
                 <span class="order-item-price">${item.count} шт. × ${formatPrice(item.priceProduct)}</span>
             </div>
@@ -739,7 +764,7 @@ function closeOrderDetail() {
     if (modal) modal.style.display = 'none';
 }
 
-// ============ Загрузка платежей ============
+// ============ Платежи ============
 async function loadUserPayments(page = 0, size = PAYMENT_PAGE_SIZE) {
     const container = document.getElementById('paymentsList');
     if (!container) return;
@@ -788,8 +813,11 @@ function renderPayments(pageData) {
         const amount = payment.value ? parseFloat(payment.value).toFixed(2) : '0.00';
         const description = payment.description || 'Оплата заказа';
 
+        // Кодируем объект платежа для передачи в onclick
+        const paymentData = encodeURIComponent(JSON.stringify(payment));
+
         return `
-            <div class="payment-card">
+            <div class="payment-card" onclick="showPaymentDetail('${payment.id}', '${paymentData}')">
                 <div>
                     <div class="payment-id">ID: ${payment.id}</div>
                     <div class="payment-description" style="color: #555;">${escapeHtml(description)}</div>
@@ -821,11 +849,151 @@ function updatePaymentPagination() {
     document.getElementById('nextPageBtn').disabled = (currentPaymentPage >= totalPaymentPages - 1);
 }
 
-// ============ Настройка триггеров вкладок ============
-function setupOrdersTabTrigger() {
-    // можно использовать для ленивой загрузки, но мы уже загружаем при старте
+// ============ Детали платежа + чек (без отдельного GET /payments/{id}) ============
+async function showPaymentDetail(paymentId, paymentDataEncoded) {
+    const modal = document.getElementById('paymentDetailModal');
+    if (!modal) return;
+
+    modal.style.display = 'flex';
+    currentPaymentId = paymentId;
+    document.getElementById('paymentDetailTitle').textContent = `Детали платежа #${paymentId}`;
+
+    // Раскодируем объект платежа из переданных данных
+    let payment;
+    try {
+        payment = JSON.parse(decodeURIComponent(paymentDataEncoded));
+    } catch (e) {
+        // Если не удалось распарсить, используем минимальные данные
+        payment = { id: paymentId, status: 'unknown', value: 0, createdAt: new Date().toISOString(), description: '' };
+    }
+
+    // Заполняем информацию о платеже
+    document.getElementById('pdPaymentId').textContent = payment.id || paymentId;
+    document.getElementById('pdAmount').textContent = payment.value ? `${parseFloat(payment.value).toFixed(2)} ₽` : '0.00 ₽';
+    document.getElementById('pdStatus').textContent = payment.status || 'неизвестно';
+    document.getElementById('pdDate').textContent = formatDate(payment.createdAt);
+    document.getElementById('pdDescription').textContent = payment.description || '—';
+
+    // Загружаем чек
+    await loadReceiptForPayment(paymentId);
 }
 
+async function loadReceiptForPayment(paymentId) {
+    const content = document.getElementById('receiptContent');
+    const createBtn = document.getElementById('createReceiptBtn');
+    createBtn.style.display = 'none';
+    content.innerHTML = '<p>Загрузка чека...</p>';
+
+    try {
+        const response = await fetch(`/api/receipts/${paymentId}`, {
+            headers: { 'X-User-Id': currentUserId || '' },
+            credentials: 'include'
+        });
+        if (response.ok) {
+            const receipt = await response.json();
+            // Проверяем, что чек действительно существует (есть id и статус)
+            if (!receipt || !receipt.id || !receipt.status) {
+                content.innerHTML = `<p style="color: #856404;">❌ Чек для этого платежа не найден. Вы можете создать его.</p>`;
+                createBtn.style.display = 'inline-block';
+                return;
+            }
+            renderReceiptInModal(receipt);
+            createBtn.style.display = 'none';
+        } else if (response.status === 404) {
+            content.innerHTML = `<p style="color: #856404;">❌ Чек для этого платежа не найден. Вы можете создать его.</p>`;
+            createBtn.style.display = 'inline-block';
+        } else {
+            const errText = await response.text();
+            content.innerHTML = `<p>❌ Ошибка загрузки чека: ${errText || response.status}</p>`;
+        }
+    } catch (err) {
+        content.innerHTML = `<p>❌ Ошибка сети: ${err.message}</p>`;
+    }
+}
+
+function renderReceiptInModal(receipt) {
+    const content = document.getElementById('receiptContent');
+    if (!content) return;
+
+    const itemsHtml = (receipt.items || []).map(item => `
+        <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #eee;">
+            <span>${escapeHtml(item.description)}</span>
+            <span>${item.quantity} × ${parseFloat(item.amountValue).toFixed(2)} ₽</span>
+            <span>${item.vatCode ? 'НДС ' + item.vatCode : ''}</span>
+        </div>
+    `).join('');
+
+    const settlementsHtml = (receipt.settlements || []).map(s => `
+        <div style="display: flex; justify-content: space-between;">
+            <span>${s.type}</span>
+            <span>${parseFloat(s.amountValue).toFixed(2)} ${s.amountCurrency}</span>
+        </div>
+    `).join('');
+
+    const html = `
+        <div style="margin-bottom: 10px;">
+            <div><strong>ID чека:</strong> ${receipt.id}</div>
+            <div><strong>Статус:</strong> ${receipt.status}</div>
+            <div><strong>Сумма:</strong> ${receipt.amount} ₽</div>
+            <div><strong>Дата регистрации:</strong> ${formatDate(receipt.registeredAt)}</div>
+            <div><strong>Продавец:</strong> ${escapeHtml(receipt.sellerName || '')}</div>
+            ${receipt.fiscalDocumentNumber ? `<div><strong>ФД:</strong> ${receipt.fiscalDocumentNumber}</div>` : ''}
+            ${receipt.fiscalStorageNumber ? `<div><strong>ФН:</strong> ${receipt.fiscalStorageNumber}</div>` : ''}
+            ${receipt.fiscalAttribute ? `<div><strong>ФП:</strong> ${receipt.fiscalAttribute}</div>` : ''}
+            ${receipt.fiscalProviderId ? `<div><strong>Провайдер:</strong> ${receipt.fiscalProviderId}</div>` : ''}
+        </div>
+        ${itemsHtml ? `<div><strong>Товары:</strong><div style="margin-top: 5px;">${itemsHtml}</div></div>` : ''}
+        ${settlementsHtml ? `<div style="margin-top: 10px;"><strong>Расчеты:</strong><div style="margin-top: 5px;">${settlementsHtml}</div></div>` : ''}
+    `;
+    content.innerHTML = html;
+}
+
+async function createReceiptFromModal() {
+    if (!currentPaymentId) {
+        showNotification('ID платежа не определен', 'error');
+        return;
+    }
+    const createBtn = document.getElementById('createReceiptBtn');
+    createBtn.disabled = true;
+    createBtn.textContent = 'Создание...';
+    try {
+        const response = await fetch(`/api/receipts/${currentPaymentId}`, {
+            method: 'POST',
+            headers: {
+                'X-User-Id': currentUserId || '',
+                'X-User-Email': currentUserEmail || ''
+            },
+            credentials: 'include'
+        });
+        if (response.ok) {
+            showNotification('Чек успешно создан', 'success');
+            await loadReceiptForPayment(currentPaymentId);
+        } else {
+            const errText = await response.text();
+            showNotification(`Ошибка создания чека: ${errText}`, 'error');
+        }
+    } catch (err) {
+        showNotification(`Ошибка: ${err.message}`, 'error');
+    } finally {
+        createBtn.disabled = false;
+        createBtn.textContent = 'Создать чек';
+    }
+}
+
+function closePaymentDetailModal() {
+    const modal = document.getElementById('paymentDetailModal');
+    if (modal) modal.style.display = 'none';
+    const createBtn = document.getElementById('createReceiptBtn');
+    if (createBtn) {
+        createBtn.style.display = 'none';
+        createBtn.disabled = false;
+        createBtn.textContent = 'Создать чек';
+    }
+    currentPaymentId = null;
+}
+
+// ============ Настройка триггеров ============
+function setupOrdersTabTrigger() {}
 function setupPaymentsTabTrigger() {
     const paymentsTabBtn = document.querySelector('.tab-button[data-tab="payments"]');
     if (!paymentsTabBtn) return;
@@ -835,7 +1003,6 @@ function setupPaymentsTabTrigger() {
         }
     });
 }
-
 function setupPaginationButtons() {
     document.getElementById('prevPageBtn')?.addEventListener('click', () => {
         if (currentPaymentPage > 0) {
@@ -849,7 +1016,7 @@ function setupPaginationButtons() {
     });
 }
 
-// ============ Вспомогательные функции ============
+// ============ Вспомогательные ============
 function initTabs() {
     const tabs = document.querySelectorAll('.tab-button');
     tabs.forEach(btn => {

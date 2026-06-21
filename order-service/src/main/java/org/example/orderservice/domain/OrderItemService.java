@@ -29,10 +29,11 @@ public class OrderItemService {
             List<OrderItemEntity> itemEntities = new ArrayList<>();
 
             for (OrderItemCreateRequest item : request) {
+                ProductResponse product = productClientService.getProduct(item.productId());
                 OrderItemEntity itemEntity = OrderItemEntity.builder()
                         .productId(item.productId())
                         .quantity(item.quantity())
-                        .price(calculatePrice(item.productId(),item.quantity()))//TODO тут по моему цена продукта должна быть 
+                        .price(product.price())//TODO тут по моему цена продукта должна быть
                         .build();
                 itemEntities.add(itemEntity);
             }

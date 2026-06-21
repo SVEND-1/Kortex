@@ -8,6 +8,7 @@ import org.example.orderservice.api.dto.OrderItemCreateRequest;
 import org.example.orderservice.api.dto.OrderResponseDTO;
 import org.example.orderservice.db.OrderStatus;
 import org.example.orderservice.domain.OrderService;
+import org.example.rest.OrderRestResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -51,5 +52,12 @@ public class OrderController {
         return ResponseEntity.ok().build();
     }
 
+    @Operation(summary = "Получить данные заказа через rest")
+    @GetMapping("/{orderId}")
+    public ResponseEntity<List<OrderRestResponse>> getOrder(
+            @PathVariable Long orderId
+    ){
+        return ResponseEntity.ok(orderService.getRest(orderId));
+    }
 }
 

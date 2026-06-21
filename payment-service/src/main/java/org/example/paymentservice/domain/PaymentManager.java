@@ -23,7 +23,7 @@ public class PaymentManager {
     private final PaymentRepository paymentRepository;
 //    private final PaymentService paymentService;
 
-    public void savePayment(String idempotencyKey, Payment saved, BigDecimal amount, Long userId) {
+    public void savePayment(String idempotencyKey, Payment saved, BigDecimal amount, Long userId,Long orderId) {
         try {
             PaymentEntity paymentEntity = PaymentEntity.builder()
                     .idempotencyKey(idempotencyKey)
@@ -31,6 +31,7 @@ public class PaymentManager {
                     .paymentId(saved.getId())
                     .paid(false)
                     .amount(amount)
+                    .orderId(orderId)
                     .createdAt(LocalDateTime.now())
                     .build();
 

@@ -10,6 +10,7 @@ import org.example.orderservice.api.dto.OrderResponseDTO;
 import org.example.orderservice.db.*;
 import org.example.orderservice.domain.mapper.OrderMapper;
 import org.example.rest.AddressRestResponse;
+import org.example.rest.OrderRestResponse;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,9 +35,17 @@ public class OrderService {
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
 
+    @Transactional
+    public List<OrderRestResponse> getRest(Long orderId){
+        OrderEntity order = orderRepository.findByIdWithItems(orderId);
+        List<OrderItemEntity> orderItems = order.getOrderItems();
+        return orderItems.stream()
+                .map(el ->
+                                new OrderRestResponse(el.getPrice(),el.getQuantity(),el.getProductId())
+                ).toList();
+    }
 
-    //================================Controller Methods================================================
-
+    //TODO сделать расчет другой
     public List<OrderResponseDTO> getHistoryOrders(Long userId){//TODO Добавить паггинацию
         try {
             List<OrderEntity> orders = orderRepository.findAllByUserId(userId);

@@ -18,7 +18,7 @@ public class WebhookController {
     private final WebhookService webhookService;
 
     @PostMapping("/yookassa")
-    public ResponseEntity<Void> handleYooKassaWebhook(
+    public ResponseEntity<Void> handleYooKassaWebhook(//TODO проверять что прищло от yookassa
             @RequestBody String rawBody) {
         webhookService.succeededPayment(rawBody);
         return ResponseEntity.ok().build();

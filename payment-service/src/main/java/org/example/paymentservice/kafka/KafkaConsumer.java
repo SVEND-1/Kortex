@@ -27,6 +27,7 @@ public class KafkaConsumer {
     @KafkaListener(topics = PAYMENT_CREATE_COMMAND,groupId = "payment-service")
     public void handlePaymentCreateCommand(CreatePaymentCommand command) {
         try {
+            //TODO надо чтобы amount высчитывался по другому
             PaymentCreateResponse response = paymentService.createPayment(command.amount(),command.orderId(),command.userID(),command.sagaId());
             //ТУТ БЫ ЕЩЁ КАК ТО МЕНЯТЬ СТАТУС И ПРОВЕРКА ЧЕРЕЗ ВЕБ СОКЕТ ЧТОБЫ ПЕРЕКИНУТЬ ПОЛЬЗОВАТЕЛЯ НА ДРУГУЮ СТРАНИЦУ
             orderClientService.setStatus(command.orderId(),"AWAITING_PAYMENT", command.userID());

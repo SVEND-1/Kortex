@@ -13,25 +13,25 @@ import java.util.List;
 @Repository
 public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
 
-    @EntityGraph(attributePaths = {"orderItems", "orderItems.product"})
+    @EntityGraph(attributePaths = {"orderItems"})
     @Query("SELECT DISTINCT o FROM OrderEntity o WHERE o.id = :id")
     OrderEntity findByIdWithItems(@Param("id") Long id);
 
 
-    @EntityGraph(attributePaths = {"orderItems", "orderItems.product", "courier"})
+    @EntityGraph(attributePaths = {"orderItems"})
     @Query("SELECT DISTINCT o FROM OrderEntity o WHERE o.userId = :userId ORDER BY o.orderDate DESC")
     List<OrderEntity> findOrdersByUserId(@Param("userId") Long userId);
 
-    @EntityGraph(attributePaths = {"orderItems", "orderItems.product", "user"})
+    @EntityGraph(attributePaths = {"orderItems"})
     @Query("SELECT DISTINCT o FROM OrderEntity o WHERE o.courierId = :courierId ORDER BY o.orderDate DESC")
     Page<OrderEntity> assignedOrdersPage(@Param("courierId") Long courierId,
                                          Pageable pageable);
 
-    @EntityGraph(attributePaths = {"orderItems", "orderItems.product", "user"})
+    @EntityGraph(attributePaths = {"orderItems"})
     @Query("SELECT DISTINCT o FROM OrderEntity o WHERE o.courierId = :courierId ORDER BY o.orderDate DESC")
     List<OrderEntity> assignedOrders(@Param("courierId") Long courierId);
 
-    @EntityGraph(attributePaths = {"orderItems", "orderItems.product", "user"})
+    @EntityGraph(attributePaths = {"orderItems"})
     @Query("SELECT DISTINCT o FROM OrderEntity o WHERE o.courierId IS NULL AND o.status = 'PENDING' ORDER BY o.orderDate DESC")
     Page<OrderEntity> availableOrdersPage(Pageable pageable);
 

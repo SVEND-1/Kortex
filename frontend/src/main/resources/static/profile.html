@@ -395,6 +395,38 @@
     </div>
 </div>
 
+<!-- НОВОЕ МОДАЛЬНОЕ ОКНО ДЛЯ ДЕТАЛЕЙ ПЛАТЕЖА И ЧЕКА -->
+<div id="paymentDetailModal" class="modal">
+    <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-header">
+            <h3 id="paymentDetailTitle">Детали платежа</h3>
+            <button class="modal-close" onclick="closePaymentDetailModal()">×</button>
+        </div>
+        <div class="modal-body">
+            <!-- Блок информации о платеже -->
+            <div id="paymentInfo" class="payment-info">
+                <p><strong>ID:</strong> <span id="pdPaymentId"></span></p>
+                <p><strong>Сумма:</strong> <span id="pdAmount"></span></p>
+                <p><strong>Статус:</strong> <span id="pdStatus"></span></p>
+                <p><strong>Дата:</strong> <span id="pdDate"></span></p>
+                <p><strong>Описание:</strong> <span id="pdDescription"></span></p>
+            </div>
+            <!-- Блок для чека -->
+            <div id="receiptBlock" class="receipt-block">
+                <h4>Чек</h4>
+                <div id="receiptContent" class="receipt-content">
+                    <p>Загрузка чека...</p>
+                </div>
+                <div style="margin-top: 10px; text-align: right;">
+                    <button class="btn btn-primary" id="createReceiptBtn" style="display:none;" onclick="createReceiptFromModal()">Создать чек</button>
+                </div>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closePaymentDetailModal()">Закрыть</button>
+        </div>
+    </div>
+</div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="js/profileScript.js"></script>
 </body>
