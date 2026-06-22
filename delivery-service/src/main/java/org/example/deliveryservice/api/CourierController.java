@@ -58,4 +58,10 @@ public class CourierController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/status-pending")
+    public ResponseEntity<Void> statusPending(
+            @RequestParam Long orderId) {
+        courierManager.setStatusToPending(orderId);
+        return ResponseEntity.ok().build();
+    }
 }

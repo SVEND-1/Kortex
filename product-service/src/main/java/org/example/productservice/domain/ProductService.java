@@ -11,10 +11,10 @@ import org.example.productservice.db.ProductCacheRepository;
 import org.example.productservice.db.ProductEntity;
 import org.example.productservice.db.ProductRepository;
 import org.example.productservice.domain.mapper.ProductMapper;
+import org.example.rest.ProductNoImageRestResponse;
 import org.example.rest.ProductResponse;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -41,6 +41,10 @@ public class ProductService {
         return productFindManager.getProductDto(id);
     }
 
+    public ProductNoImageRestResponse getProductNoImageRest(Long id) {
+        return productFindManager.getProductNoImageDto(id);
+    }
+
     public List<ProductResponse> getProductsBySeller(Long sellerId) {
         return productFindManager.getProductsBySeller(sellerId);
     }
@@ -49,17 +53,8 @@ public class ProductService {
         return productRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("Продукт не найден"));
     }
 
-    //TODO ПОСЛЕ КОММИТА АСИНХРОНО ВЫПОЛНЯТЬ
-    //   TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-    //            @Override
-    //            public void afterCommit() {
-    //                String cacheKey = CACHE_KEY_PREFIX + productId;
-    //                redisTemplate.delete(cacheKey);
-    //            }
-    //        });
-
     @Transactional()
-    public void productSubtractQuantity(Long productId, int quantity) {//TODO тут в кафка при создание заказа
+    public void productSubtractQuantity(Long productId, int quantity) {
         try {
             ProductEntity product = getByIdEntity(productId);
             product.setCount(product.getCount() - quantity);
@@ -74,7 +69,6 @@ public class ProductService {
         }
     }
 
-    //АСИНХРОНО ДЕЛАТЬ
     @Transactional()
     public void productAddQuantity(Long productId, int quantity) {
         try {
@@ -91,25 +85,28 @@ public class ProductService {
         }
     }
 
-
     @Transactional
     public ProductEntity create(ProductCreateRequest request,Long sellerId) {
         try {
             List<String> imagePaths =  productImageService.saveImages(request.imageFiles());
-            ProductEntity product = ProductEntity.builder()
-                    .name(request.name())
-                    .price(request.price())
-                    .count(request.count())
-                    .description(request.description())
-                    .category(request.category())
-                    .sellerId(sellerId)
-                    .images(imagePaths)
-                    .build();
+            ProductEntity product = buildProductEntity(request, sellerId, imagePaths);
             return productRepository.save(product);
         }catch (Exception e){
             log.error("Ошибка сохранение продукта");
             throw new RuntimeException(e);
         }
+    }
+
+    private ProductEntity buildProductEntity(ProductCreateRequest request, Long sellerId,List<String> imagePaths) {
+        return ProductEntity.builder()
+                .name(request.name())
+                .price(request.price())
+                .count(request.count())
+                .description(request.description())
+                .category(request.category())
+                .sellerId(sellerId)
+                .images(imagePaths)
+                .build();
     }
 
     @Transactional
@@ -147,11 +144,11 @@ public class ProductService {
     }
 
     @Transactional
-    public void deleted(Long id) {//TODO надо добавить когда удаляется продукт из корзины все удалялось ,а лучше сделать статус для продуктов ,а не удалять его
-        try {//TODO надо изображение чтобы не в корне сохранялись
-            ProductEntity product = getByIdEntity(id);
-            productRepository.deleteById(id);
-            productImageService.deleteImages(product.getImages());
+    public void deleted(Long id) {
+        try {
+            ProductEntity product = getByIdEntity(id);//Можно сделать статус продукта
+            product.setCount(0);
+            productRepository.save(product);
             productCacheRepository.remove(id);
         }
         catch (Exception e){

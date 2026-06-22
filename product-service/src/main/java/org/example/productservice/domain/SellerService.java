@@ -55,7 +55,7 @@ public class SellerService {
         }
     }
 
-
+    @Transactional
     public ProductResponse updateProduct(Long id, ProductUpdateRequest request,Long sellerId) {
         try {
             validateProductBelongsToSeller(id,sellerId);
@@ -67,6 +67,7 @@ public class SellerService {
         }
     }
 
+    @Transactional
     public ProductResponse updateImages(Long productId, List<MultipartFile> imageFiles, Long sellerId) {
         try {
             validateProductBelongsToSeller(productId,sellerId);

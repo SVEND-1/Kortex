@@ -13,7 +13,7 @@ import java.util.List;
 @Setter
 @Entity
 @Table(name = "carts",schema = "cart")
-public class Cart {
+public class CartEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -23,7 +23,7 @@ public class Cart {
     private Long userId;
 
     @OneToMany(mappedBy = "cart", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
-    private List<CartItem> cartItems = new ArrayList<>();
+    private List<CartItemEntity> cartItems = new ArrayList<>();
 
     public int getQuantity() {
         List<Integer> result = new ArrayList<>();

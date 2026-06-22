@@ -1,5 +1,6 @@
 package org.example.paymentservice.domain;
 
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.common.errors.ApiException;
@@ -40,7 +41,9 @@ public class ReceiptService {
     }
 
     public void isValidUser(String paymentId,Long userId) {
-        if(!paymentRepository.findByPaymentId(paymentId).getUserId().equals(userId)){
+        PaymentEntity payment = paymentRepository.findByPaymentId(paymentId)
+                .orElseThrow(() -> new EntityNotFoundException("Платеж не найден"));
+        if(!payment.getUserId().equals(userId)){
             log.warn("Пользователь не является владельцем платежа");
             throw new PaymentOwnershipException("Пользователь не является владельцем платежа");
         }

@@ -22,9 +22,6 @@ public class OrderEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private Long userId;
 
-    @JoinColumn(name = "courier_id")//TODO возможно не надо будет
-    private Long courierId;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "status")
     private OrderStatus status = OrderStatus.PENDING;

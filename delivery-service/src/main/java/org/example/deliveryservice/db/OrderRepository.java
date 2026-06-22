@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -29,10 +30,8 @@ public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
     List<OrderEntity> assignedOrders(@Param("courierId") Long courierId);
 
     @EntityGraph(attributePaths = {"orderItems"})
-    @Query("SELECT DISTINCT o FROM OrderEntity o WHERE o.courierId IS NULL AND o.status = 'CREATED'")
+    @Query("SELECT DISTINCT o FROM OrderEntity o WHERE o.courierId IS NULL AND o.status = 'AWAIT_COURIER'")
     Page<OrderEntity> availableOrdersPage(Pageable pageable);
 
-    List<OrderEntity> findAllByStatus(OrderStatus status);
-
-    List<OrderEntity> findAllByUserId(Long userId);
+    boolean existsByCourierIdAndStatusNotIn(Long courierId, Collection<OrderStatus> statuses);
 }

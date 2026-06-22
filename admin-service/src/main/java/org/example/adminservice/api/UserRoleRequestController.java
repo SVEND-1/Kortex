@@ -7,7 +7,6 @@ import lombok.RequiredArgsConstructor;
 import org.example.adminservice.api.dto.request.RoleCreateRequest;
 import org.example.adminservice.api.dto.response.RoleRequestResponse;
 import org.example.adminservice.domain.RoleRequestService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -36,7 +35,7 @@ public class UserRoleRequestController {
             @RequestHeader(value = "X-User-Id", required = false) Long userId
     ) {
         return ResponseEntity.ok(
-                roleRequestService.create(request.requestedRole(), request.typeAction(),request.message(),userId)
+                roleRequestService.create(request,userId)
         );
     }
 

@@ -13,7 +13,7 @@ import java.math.BigDecimal;
 @Setter
 @Entity
 @Table(name = "cart_items",schema = "cart")
-public class CartItem {
+public class CartItemEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -21,7 +21,7 @@ public class CartItem {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cart_id", nullable = false)
-    private Cart cart;
+    private CartEntity cart;
 
     @Column(name = "product_id")
     @JoinColumn(name = "product_id", nullable = false)

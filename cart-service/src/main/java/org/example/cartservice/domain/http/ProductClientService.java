@@ -1,4 +1,4 @@
-package org.example.cartservice.domain;
+package org.example.cartservice.domain.http;
 
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;

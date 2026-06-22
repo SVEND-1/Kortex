@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @Setter
 @Entity
 @Table(name = "role_requests",schema = "role_request")
-public class RoleRequest {
+public class RoleRequestEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

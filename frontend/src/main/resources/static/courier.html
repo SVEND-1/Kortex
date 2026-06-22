@@ -184,8 +184,13 @@
         .detail-item-name {
             flex: 1;
         }
+        .detail-item-qty {
+            color: #666;
+            white-space: nowrap;
+        }
         .detail-item-price {
             font-weight: 500;
+            white-space: nowrap;
         }
         .detail-total {
             text-align: right;
@@ -289,33 +294,26 @@
     </div>
 </div>
 
-<!-- Шаблон заказа -->
+<!-- Шаблон заказа (поля строго по OrderResponse DTO) -->
 <template id="orderTemplate">
     <div class="order-card" data-order-id="">
         <div class="order-header">
-            <div>
-                <h4 class="order-number">Заказ #<span class="order-id"></span></h4>
-                <div class="order-date" style="font-size: 0.8rem; color: #666; margin-top: 2px;"></div>
-            </div>
+            <h4 class="order-number">Заказ #<span class="order-id"></span></h4>
             <span class="order-status">Статус</span>
         </div>
 
         <div class="order-customer">
             <div class="customer-info">
-                <strong>Клиент:</strong>
-                <span class="customer-name">Загрузка...</span>
-            </div>
-            <div class="customer-info">
-                <strong>Телефон:</strong>
-                <span class="customer-phone">Загрузка...</span>
-            </div>
-            <div class="customer-info">
                 <strong>Адрес:</strong>
                 <span class="customer-address">Загрузка...</span>
             </div>
-            <div class="customer-info courier-info">
-                <strong>Курьер:</strong>
-                <span class="courier-name">Не назначен</span>
+            <div class="customer-info">
+                <strong>Комментарий:</strong>
+                <span class="order-message">—</span>
+            </div>
+            <div class="customer-info">
+                <strong>Позиций в заказе:</strong>
+                <span class="order-items-count">0</span>
             </div>
             <div class="order-price">
                 <strong>Сумма:</strong>

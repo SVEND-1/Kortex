@@ -17,7 +17,7 @@ public class PaymentController {
     public ResponseEntity<String> getPayments(
             @PathVariable Long orderId
     ) {
-        return ResponseEntity.ok(PaymentService.paymentUrl.get(orderId));
+        return ResponseEntity.ok(paymentService.getUrlPayment(orderId));
     }
 
     @GetMapping()
@@ -28,13 +28,5 @@ public class PaymentController {
     ){
         return ResponseEntity.ok(paymentService.findAllPaymentsByUser(userId,page,size));
     }
-//    @GetMapping
-//    public ResponseEntity<List<OrderPaymentApproved>> getPayments() {
-//        return ResponseEntity.ok(orderService.getOrdersPayment());
-//    }
-//
-//    @PostMapping("/{id}")
-//    public ResponseEntity<String> postPayment(@PathVariable Long id) {
-//        return ResponseEntity.ok(orderService.paymentApprove(id));
-//    }
+
 }

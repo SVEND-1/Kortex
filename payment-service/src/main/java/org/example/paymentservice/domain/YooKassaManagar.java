@@ -9,7 +9,6 @@ import ru.loolzaaa.youkassa.client.ApiClient;
 import ru.loolzaaa.youkassa.client.ApiClientBuilder;
 import ru.loolzaaa.youkassa.model.Payment;
 import ru.loolzaaa.youkassa.processors.PaymentProcessor;
-import ru.loolzaaa.youkassa.processors.ReceiptProcessor;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -18,7 +17,6 @@ public class YooKassaManagar {
 
     private final PaymentYooKassaService yooKassaManager;
     private PaymentProcessor paymentProcessor;
-    private ReceiptProcessor receiptProcessor;
     private ApiClient apiClient;
     @Value("${shop_id}")
     private String shopId;
@@ -32,7 +30,6 @@ public class YooKassaManagar {
                 .configureBasicAuth(shopId, secretKey)
                 .build();
         paymentProcessor = new PaymentProcessor(apiClient);
-        receiptProcessor = new ReceiptProcessor(apiClient);
 
         log.info("YooKassa инициализирована");
     }

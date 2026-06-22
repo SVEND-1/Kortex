@@ -22,19 +22,6 @@ public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
     @Query("SELECT DISTINCT o FROM OrderEntity o WHERE o.userId = :userId ORDER BY o.orderDate DESC")
     List<OrderEntity> findOrdersByUserId(@Param("userId") Long userId);
 
-    @EntityGraph(attributePaths = {"orderItems"})
-    @Query("SELECT DISTINCT o FROM OrderEntity o WHERE o.courierId = :courierId ORDER BY o.orderDate DESC")
-    Page<OrderEntity> assignedOrdersPage(@Param("courierId") Long courierId,
-                                         Pageable pageable);
-
-    @EntityGraph(attributePaths = {"orderItems"})
-    @Query("SELECT DISTINCT o FROM OrderEntity o WHERE o.courierId = :courierId ORDER BY o.orderDate DESC")
-    List<OrderEntity> assignedOrders(@Param("courierId") Long courierId);
-
-    @EntityGraph(attributePaths = {"orderItems"})
-    @Query("SELECT DISTINCT o FROM OrderEntity o WHERE o.courierId IS NULL AND o.status = 'PENDING' ORDER BY o.orderDate DESC")
-    Page<OrderEntity> availableOrdersPage(Pageable pageable);
-
 
     OrderEntity findByPaymentId(String paymentId);
 

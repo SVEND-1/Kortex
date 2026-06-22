@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.example.productservice.api.dto.request.ProductSearchFilter;
 import org.example.productservice.api.dto.response.ProductPageResponse;
 import org.example.productservice.domain.ProductService;
+import org.example.rest.ProductNoImageRestResponse;
 import org.example.rest.ProductResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -32,5 +33,11 @@ public class ProductController {
     @GetMapping("/{id}")
     public ResponseEntity<ProductResponse> productDetailPage(@PathVariable String id)  {
         return ResponseEntity.ok(productService.getProductDto(Long.parseLong(id)));
+    }
+
+    @Operation(summary = "Получение dto без картинок")
+    @GetMapping("/{id}/no-image")
+    public ResponseEntity<ProductNoImageRestResponse> productDetailNoImage(@PathVariable Long id)  {
+        return ResponseEntity.ok(productService.getProductNoImageRest(id));
     }
 }

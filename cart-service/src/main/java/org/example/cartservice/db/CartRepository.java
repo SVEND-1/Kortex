@@ -7,11 +7,11 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface CartRepository extends JpaRepository<Cart, Long> {
+public interface CartRepository extends JpaRepository<CartEntity, Long> {
 
     @EntityGraph(attributePaths = {"cartItems"})
-    @Query("SELECT DISTINCT c FROM Cart c WHERE c.userId = :userId")
-    Cart findByUserIdWithItems(@Param("userId") Long userId);
+    @Query("SELECT DISTINCT c FROM CartEntity c WHERE c.userId = :userId")
+    CartEntity findByUserIdWithItems(@Param("userId") Long userId);
 
     boolean existsByIdAndUserId(Long id, Long userId);
 }

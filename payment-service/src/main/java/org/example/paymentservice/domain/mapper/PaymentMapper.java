@@ -15,9 +15,9 @@ import java.util.List;
 public interface PaymentMapper {
 
 
-    @Mapping(target = "id", source = "paymentId")   // paymentId -> id
-    @Mapping(target = "value", source = "amount")   // amount -> value
-    @Mapping(target = "description", constant = "Оплата заказа") // или можно взять из другой модели
+    @Mapping(target = "id", source = "paymentId")
+    @Mapping(target = "value", source = "amount")
+    @Mapping(target = "description", constant = "Оплата заказа")
     @Mapping(target = "status", source = "paid", qualifiedByName = "paidToStatus")
     PaymentResponse toResponse(PaymentEntity entity);
 
@@ -44,7 +44,6 @@ public interface PaymentMapper {
         );
     }
 
-    // Вспомогательные методы конвертации
     @Named("paidToStatus")
     default String paidToStatus(Boolean paid) {
         return paid != null && paid ? "succeeded" : "pending";

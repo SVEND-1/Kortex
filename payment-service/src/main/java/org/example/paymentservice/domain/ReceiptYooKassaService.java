@@ -1,6 +1,7 @@
 package org.example.paymentservice.domain;
 
 import jakarta.annotation.PostConstruct;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.paymentservice.api.dto.response.receipt.ReceiptResponse;
@@ -64,7 +65,8 @@ public class ReceiptYooKassaService {
                 throw new IllegalStateException("Чек можно создавать только для успешных платежей");
             }
 
-            PaymentEntity paymentEntity = paymentRepository.findByPaymentId(paymentId);
+            PaymentEntity paymentEntity = paymentRepository.findByPaymentId(paymentId)
+                    .orElseThrow(() -> new EntityNotFoundException("Платеж не найден"));
             List<OrderRestResponse> order = orderClientService.getOrder(paymentEntity.getOrderId());
 
             Customer customer = Customer.builder()
@@ -115,7 +117,8 @@ public class ReceiptYooKassaService {
 
     public ReceiptResponse findReceiptDTO(String paymentId) {//Надо чтобы не dto
         try {
-            PaymentEntity payment = paymentRepository.findByPaymentId(paymentId);
+            PaymentEntity payment = paymentRepository.findByPaymentId(paymentId)
+                    .orElseThrow(() -> new EntityNotFoundException("Платеж не найден"));
 
             if (payment.getReceiptId() == null) {
                 log.warn("Чек ещё не создан");

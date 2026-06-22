@@ -1,13 +1,13 @@
 package org.example.adminservice.api.dto.response;
 
-import org.example.adminservice.db.RoleRequest;
+import org.example.adminservice.db.RoleRequestEntity;
 
 import java.time.LocalDateTime;
 
 public record RoleRequestResponse(
         Long id,
-        RoleRequest.Status status,
-        RoleRequest.TypeAction typeAction ,
+        RoleRequestEntity.Status status,
+        RoleRequestEntity.TypeAction typeAction ,
         String message,
         LocalDateTime createdAt,
         Long userId,

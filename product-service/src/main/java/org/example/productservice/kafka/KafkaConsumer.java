@@ -7,13 +7,9 @@ import org.example.productservice.domain.ProductService;
 import org.example.saga.OrderItem;
 import org.example.saga.command.approve.ReserveStockCommand;
 import org.example.saga.command.compensate.ReleaseStockCommand;
-import org.example.saga.event.approve.StockReservedEvent;
-import org.example.saga.event.failed.StockReservationFailedEvent;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.Map;
 import java.util.Set;
 
 import static org.example.Topics.PRODUCT_RETURN_EVENT;
@@ -25,7 +21,7 @@ import static org.example.saga.KafkaTopics.*;
 public class KafkaConsumer {
 
     private final ProductService productService;
-    private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final KafkaProducer kafkaProducer;
 
     @KafkaListener(topics = PRODUCT_COMMAND,groupId = "product-service")
     public void handleProductCommand(ReserveStockCommand command) {
@@ -33,11 +29,9 @@ public class KafkaConsumer {
             for(OrderItem item : command.orderItems()) {
                 productService.productSubtractQuantity(item.productId(), item.quantity());
             }
-            StockReservedEvent event = new StockReservedEvent(command.sagaId());
-            kafkaTemplate.send(PRODUCT_APPROVE_EVENT,command.sagaId(),event);
+            kafkaProducer.sendProductApprove(command);
         }catch (Exception e) {
-            StockReservationFailedEvent event = new StockReservationFailedEvent(command.sagaId(),"Не удалось зарезервировать товар,ex=" + e.getMessage());
-            kafkaTemplate.send(PRODUCT_FAILED_EVENT,command.sagaId(),event);
+            kafkaProducer.sendProductFailed(command,e.getMessage());
         }
     }
 

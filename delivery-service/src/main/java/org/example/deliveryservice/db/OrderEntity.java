@@ -3,7 +3,6 @@ package org.example.deliveryservice.db;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,7 +26,7 @@ public class OrderEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status")
-    private OrderStatus status = OrderStatus.PENDING;
+    private OrderStatus status = OrderStatus.AWAIT_COURIER;
 
     @Column(name = "courier_taken")
     private LocalDateTime courierTaken;

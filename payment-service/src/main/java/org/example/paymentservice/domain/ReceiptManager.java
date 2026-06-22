@@ -1,5 +1,6 @@
 package org.example.paymentservice.domain;
 
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.paymentservice.db.PaymentEntity;
@@ -18,7 +19,8 @@ public class ReceiptManager {
 
     public PaymentEntity saveReceipt(String paymentId, Receipt saved) {
         try {
-            PaymentEntity paymentEntity = paymentRepository.findByPaymentId(paymentId);
+            PaymentEntity paymentEntity = paymentRepository.findByPaymentId(paymentId)
+                    .orElseThrow(() -> new EntityNotFoundException("Платеж не найден"));
             paymentEntity.setReceiptId(saved.getId());
             return paymentRepository.save(paymentEntity);
         }catch (Exception e) {

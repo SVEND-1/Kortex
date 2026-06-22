@@ -16,16 +16,8 @@ import java.util.Map;
 @Component
 public class PaymentYooKassaService {
 
-    private final PaymentService paymentService;
     @Value("${app.base-url:http://localhost:8080/payments}")
     private String RETURN_URL;
-
-    private final ReceiptMapper receiptMapper;
-
-    public PaymentYooKassaService(@Lazy PaymentService paymentService, ReceiptMapper receiptMapper) {
-        this.paymentService = paymentService;
-        this.receiptMapper = receiptMapper;
-    }
 
     public Payment findPayment(PaymentProcessor paymentProcessor, String paymentId) {
         try {
@@ -66,82 +58,6 @@ public class PaymentYooKassaService {
             log.error("Не удалось создать платеж yookassa,ex={}", e.getMessage());
             throw new RuntimeException(e.getMessage(), e);
         }
-    }
-
-//    public Receipt createYooKassaReceipt(ReceiptProcessor receiptProcessor, String paymentId) {
-//        try {
-//            Payment payment = paymentService.findPayment(paymentId);
-//            if (!"succeeded".equals(payment.getStatus())) {
-//                log.warn("Чек создается для неуспешного платежа: {}", paymentId);
-//            }
-//
-//            Customer customer = Customer.builder()
-//                    .email(userService.getCurrentUser().getEmail())
-//                    .build();
-//
-//            Amount paymentAmount = payment.getAmount();
-//            Amount itemAmount = Amount.builder()
-//                    .value(paymentAmount.getValue())
-//                    .currency(paymentAmount.getCurrency())
-//                    .build();
-//
-//            Item item = Item.builder()
-//                    .description("Оплата заказа Kortex")
-//                    .amount(itemAmount)
-//                    .vatCode(1)
-//                    .quantity("1")
-//                    .build();
-//
-//            Settlement settlement = Settlement.builder()
-//                    .type(getSettlementType(payment))
-//                    .amount(itemAmount)
-//                    .build();
-//
-//            Receipt receipt = Receipt.builder()
-//                    .type(Receipt.Type.PAYMENT)
-//                    .paymentId(paymentId)
-//                    .customer(customer)
-//                    .items(List.of(item))
-//                    .settlements(List.of(settlement))
-//                    .send(true)
-//                    .build();
-//
-//            return receiptProcessor.create(receipt, null);
-//        } catch (Exception e) {
-//            log.error("Не удалось создать чек через yookassa,ex={}", e.getMessage());
-//            throw new RuntimeException(e.getMessage(), e);
-//        }
-//    }
-//
-//    public ReceiptResponse findReceiptDTO(ReceiptProcessor receiptProcessor, String paymentId) {
-//        try {
-//            PaymentEntity payment = paymentService.findByPaymentId(paymentId);
-//
-//            if (payment.getReceiptId() == null) {
-//                throw new RuntimeException("Чек ещё не создан для платежа: " + paymentId);
-//            }
-//
-//            Receipt receipt = receiptProcessor.findById(payment.getReceiptId());
-//            return receiptMapper.convertReceiptToReceiptResponse(receipt);
-//        } catch (Exception e) {
-//            log.error("Ошибка поиска чека,ex={}", e.getMessage());
-//            throw new RuntimeException("Чек не найден", e);
-//        }
-//    }
-
-    private String getSettlementType(Payment payment) {
-        return switch (payment.getPaymentMethod().getType()) {
-            case "bank_card", "sberbank", "tinkoff_bank", "alpha_bank", "sbp" ->
-                    Settlement.Type.CASHLESS;
-            case "yoo_money", "qiwi" ->
-                    Settlement.Type.PREPAYMENT;
-            case "cash" ->
-                    Settlement.Type.PAYOUT;
-            case "bank_transfer" ->
-                    Settlement.Type.POSTPAYMENT;
-            default ->
-                    Settlement.Type.CASHLESS;
-        };
     }
 }
 

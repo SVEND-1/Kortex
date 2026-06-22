@@ -11,7 +11,7 @@ import ru.loolzaaa.youkassa.pojo.Settlement;
 @Mapper(componentModel = "spring")
 public interface ReceiptMapper {
 
-    default ReceiptResponse convertReceiptToReceiptResponse(Receipt receipt,String amount) {//TODO поменять
+    default ReceiptResponse convertReceiptToReceiptResponse(Receipt receipt,String amount) {
         return new ReceiptResponse(
                 receipt.getId(),
                 receipt.getType(),

@@ -11,6 +11,7 @@ import org.example.productservice.db.ProductCacheRepository;
 import org.example.productservice.db.ProductEntity;
 import org.example.productservice.db.ProductRepository;
 import org.example.productservice.domain.mapper.ProductMapper;
+import org.example.rest.ProductNoImageRestResponse;
 import org.example.rest.ProductResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -56,8 +57,8 @@ public class ProductFindManager {
         int pageSize = filter.size() != null ? filter.size() : 10;
         int pageNumber = filter.page() != null ? filter.page() : 0;
         String query = filter.query() != null ? filter.query() : "";
-        return new SearchParams(
-                category, pageSize, pageNumber, query);
+
+        return new SearchParams(category, pageSize, pageNumber, query);
     }
 
     private Page<ProductEntity> fetchProductsPage(Category category, String query, Pageable pageable){
@@ -80,8 +81,10 @@ public class ProductFindManager {
                 return cached.withImages(activeUrls);
             }
 
-            ProductEntity productEntity = productRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("Продукт не найден с id=" + id));
+            ProductEntity productEntity = productRepository.findById(id).orElseThrow(
+                    () -> new EntityNotFoundException("Продукт не найден с id=" + id));
             ProductResponse productResponse = productMapper.convertEntityToDTO(productEntity);
+
             productCacheRepository.save(productResponse);
             List<String> activeUrls = productImageService.findImages(productResponse.images());
             return productResponse.withImages(activeUrls);
@@ -91,6 +94,33 @@ public class ProductFindManager {
         }
     }
 
+    public ProductNoImageRestResponse getProductNoImageDto(Long id) {
+        try {
+            ProductResponse cached = productCacheRepository.getProduct(id);
+            if (cached != null) {
+                return buildProductNoImageDto(cached);
+            }
+
+            ProductEntity productEntity = productRepository.findById(id).orElseThrow(
+                    () -> new EntityNotFoundException("Продукт не найден с id=" + id));
+            ProductResponse productResponse = productMapper.convertEntityToDTO(productEntity);
+
+            productCacheRepository.save(productResponse);
+            return buildProductNoImageDto(productResponse);
+        }catch (Exception e){
+            log.error("Не удалось найти продукт без картинок, ex={}", e.getMessage());
+            throw new RuntimeException(e);
+        }
+    }
+
+    public ProductNoImageRestResponse buildProductNoImageDto(ProductResponse product) {
+        return new ProductNoImageRestResponse(
+                product.id(),
+                product.name(),
+                product.price(),
+                product.category()
+                );
+    }
 
     @Transactional(readOnly = true)
     public List<ProductResponse> getProductsBySeller(Long sellerId) {

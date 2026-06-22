@@ -67,33 +67,6 @@ public class OrderCreateManager {
         }
     }
 
-
-//    private void notify(User user){
-//        NotifyEvent notifyEvent = new NotifyEvent(
-//                user.getEmail(),
-//                Map.of("userName", user.getName()),
-//                NotifyType.ORDER_CREATED
-//        );
-//        kafkaProducer.sendMessageToKafka(notifyEvent);
-//    }
-
-//
-//    private String validatePayment(String paymentId,Order order) {
-//        if (paymentId == null || paymentId.trim().isEmpty()) {
-//            return "Неверный paymentId";
-//        }
-//        paymentService.isValidUser(paymentId);
-//
-//        PaymentResponse payment = paymentService.findPaymentDto(paymentId);
-//        if (!"succeeded".equals(payment.status())) {
-//            return "Платёж не прошёл";
-//        }
-//        if(paymentService.findByPaymentId(paymentId).getUse()) {
-//            return "Этот платеж уже был использован для оплаты";
-//        }
-//        return null;
-//    }
-
 //    private void isValid(User user,Cart cart) {
 //        if(user.getAddress() == null){
 //            log.warn("Для создание заказа необходим адрес");

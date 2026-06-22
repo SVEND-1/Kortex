@@ -7,6 +7,9 @@ const pageSize = 3;
 let totalPages = 0;
 let totalElements = 0;
 
+// Кэш текущих отображённых заказов: id -> OrderResponse (для модалки деталей)
+let ordersById = {};
+
 // Получение данных пользователя из localStorage
 function getUserData() {
     const userId = localStorage.getItem('userId');
@@ -124,6 +127,7 @@ function extractOrdersFromResponse(response) {
     return [];
 }
 
+// Поля пагинации строго по OrderPageResponse: pageNumber, pageSize, totalElements, totalPages, first, last, empty
 function updatePaginationInfo(response) {
     if (!response || typeof response !== 'object') {
         totalPages = 0;
@@ -133,7 +137,7 @@ function updatePaginationInfo(response) {
     }
     totalPages = response.totalPages || 0;
     totalElements = response.totalElements || 0;
-    currentPage = response.number !== undefined ? response.number : 0;
+    currentPage = response.pageNumber !== undefined ? response.pageNumber : 0;
 }
 
 function updateStatsUI(active, available, total) {
@@ -227,6 +231,14 @@ function displayOrders(orders, filter) {
     const paginationContainer = document.getElementById('paginationContainer');
     if (!ordersContainer) return;
 
+    // Обновляем кэш заказов для модалки деталей
+    ordersById = {};
+    (Array.isArray(orders) ? orders : []).forEach(order => {
+        if (order && order.id !== undefined && order.id !== null) {
+            ordersById[order.id] = order;
+        }
+    });
+
     if (!Array.isArray(orders) || orders.length === 0) {
         let message = currentUser.role === 'ADMIN'
             ? (filter === 'assigned' ? 'Нет заказов для отображения' : 'Нет заказов без курьера')
@@ -259,7 +271,7 @@ function displayOrders(orders, filter) {
     }
 }
 
-// Создание элемента заказа с реальными данными из DTO
+// Создание элемента заказа строго по полям OrderResponse: id, status, address, message, orderItems
 function createOrderElement(order, filter) {
     const template = document.getElementById('orderTemplate');
     if (!template) throw new Error('Шаблон orderTemplate не найден');
@@ -273,13 +285,10 @@ function createOrderElement(order, filter) {
 
     const elements = {
         orderId: orderCard.querySelector('.order-id'),
-        customerName: orderCard.querySelector('.customer-name'),
-        customerPhone: orderCard.querySelector('.customer-phone'),
         customerAddress: orderCard.querySelector('.customer-address'),
+        orderMessage: orderCard.querySelector('.order-message'),
+        itemsCount: orderCard.querySelector('.order-items-count'),
         priceValue: orderCard.querySelector('.price-value'),
-        orderDate: orderCard.querySelector('.order-date'),
-        courierInfo: orderCard.querySelector('.courier-info'),
-        courierName: orderCard.querySelector('.courier-name'),
         orderStatus: orderCard.querySelector('.order-status'),
         acceptBtn: orderCard.querySelector('.accept-btn'),
         startBtn: orderCard.querySelector('.start-btn'),
@@ -291,41 +300,33 @@ function createOrderElement(order, filter) {
 
     if (elements.orderId) elements.orderId.textContent = `Заказ #${orderId}`;
 
-    // Имя клиента – нет в DTO, ставим "Не указано"
-    if (elements.customerName) elements.customerName.textContent = 'Не указано';
-    if (elements.customerPhone) elements.customerPhone.textContent = 'Не указано';
-
-    // Адрес – собираем из order.address (если есть)
+    // Адрес — AddressRestResponse: region, city, street, house, apartment
     if (elements.customerAddress) {
         const addr = order.address || {};
-        const parts = [addr.city, addr.street, addr.house, addr.apartment].filter(Boolean);
+        const parts = [addr.region, addr.city, addr.street, addr.house, addr.apartment].filter(Boolean);
         elements.customerAddress.textContent = parts.length ? parts.join(', ') : 'Не указано';
     }
 
-    // Сумма – вычисляем из orderItems
+    // Комментарий к заказу — поле message
+    if (elements.orderMessage) {
+        elements.orderMessage.textContent = order.message ? order.message : '—';
+    }
+
+    const items = Array.isArray(order.orderItems) ? order.orderItems : [];
+
+    // Кол-во позиций в заказе
+    if (elements.itemsCount) {
+        elements.itemsCount.textContent = items.length;
+    }
+
+    // Сумма — считаем из orderItems (price * quantity)
     if (elements.priceValue) {
-        const items = order.orderItems || [];
         const total = items.reduce((sum, item) => {
             const price = item.price ? parseFloat(item.price) : 0;
             const quantity = item.quantity || 1;
             return sum + price * quantity;
         }, 0);
         elements.priceValue.textContent = `${formatPrice(total)} ₽`;
-    }
-
-    // Дата – нет в DTO, пока скрываем
-    if (elements.orderDate) {
-        elements.orderDate.style.display = 'none';
-    }
-
-    // Курьер – показываем только если есть courierId
-    const courierId = order.courierId;
-    if (elements.courierInfo) {
-        if (courierId) {
-            elements.courierInfo.innerHTML = `<strong>Курьер:</strong> <span class="courier-name">Курьер #${courierId}</span>`;
-        } else {
-            elements.courierInfo.innerHTML = '<strong>Курьер:</strong> <span class="courier-name">Не назначен</span>';
-        }
     }
 
     // Статус
@@ -335,7 +336,6 @@ function createOrderElement(order, filter) {
         elements.orderStatus.className = `order-status status-${status.toLowerCase()}`;
     }
 
-    // Настройка кнопок
     setupOrderButtons(elements, status, orderId, filter);
 
     return orderCard;
@@ -520,61 +520,69 @@ async function refreshData() {
     }
 }
 
-// Детали заказа (модальное окно)
+// Детали заказа (модальное окно) — строим из полного OrderResponse, включая orderItems
 function showOrderDetails(orderId) {
-    const ordersContainer = document.getElementById('ordersContainer');
-    const orderCard = ordersContainer.querySelector(`.order-card[data-order-id="${orderId}"]`);
-    if (!orderCard) {
+    const order = ordersById[orderId];
+    if (!order) {
         alert('Заказ не найден в списке. Попробуйте обновить.');
         return;
     }
-
-    const orderNumber = orderId;
-    const statusText = orderCard.querySelector('.order-status')?.textContent || 'Неизвестно';
-    const customerName = orderCard.querySelector('.customer-name')?.textContent || 'Не указано';
-    const customerPhone = orderCard.querySelector('.customer-phone')?.textContent || 'Не указано';
-    const customerAddress = orderCard.querySelector('.customer-address')?.textContent || 'Не указано';
-    const courierName = orderCard.querySelector('.courier-name')?.textContent || 'Не назначен';
-    const priceText = orderCard.querySelector('.price-value')?.textContent || '0 ₽';
 
     const modal = document.getElementById('orderDetailModal');
     const title = document.getElementById('detailOrderTitle');
     const content = document.getElementById('detailOrderContent');
 
-    title.textContent = `Детали заказа #${orderNumber}`;
+    title.textContent = `Детали заказа #${order.id}`;
+
+    // Адрес — полностью, включая region
+    const addr = order.address || {};
+    const addressParts = [addr.region, addr.city, addr.street, addr.house, addr.apartment].filter(Boolean);
+    const addressText = addressParts.length ? addressParts.join(', ') : 'Не указано';
+
+    const statusText = getStatusText(order.status || 'PENDING');
+    const messageText = order.message ? order.message : '—';
+
+    const items = Array.isArray(order.orderItems) ? order.orderItems : [];
+    let total = 0;
+    const itemsHtml = items.length
+        ? items.map(item => {
+            const price = item.price ? parseFloat(item.price) : 0;
+            const quantity = item.quantity || 1;
+            const lineTotal = price * quantity;
+            total += lineTotal;
+            const product = item.product || {};
+            const productName = product.name || 'Товар';
+            const productCategory = product.category ? ` (${product.category})` : '';
+            return `
+                <div class="detail-item-row">
+                    <span class="detail-item-name">${escapeHtml(productName)}${escapeHtml(productCategory)}</span>
+                    <span class="detail-item-qty">${quantity} шт.</span>
+                    <span class="detail-item-price">${formatPrice(lineTotal)} ₽</span>
+                </div>
+            `;
+        }).join('')
+        : '<p style="color: #999;">Информация о товарах отсутствует.</p>';
 
     content.innerHTML = `
         <div class="detail-item">
             <span class="detail-label">Статус:</span>
-            <span class="detail-value">${statusText}</span>
-        </div>
-        <div class="detail-item">
-            <span class="detail-label">Клиент:</span>
-            <span class="detail-value">${customerName}</span>
-        </div>
-        <div class="detail-item">
-            <span class="detail-label">Телефон:</span>
-            <span class="detail-value">${customerPhone}</span>
+            <span class="detail-value">${escapeHtml(statusText)}</span>
         </div>
         <div class="detail-item">
             <span class="detail-label">Адрес:</span>
-            <span class="detail-value">${customerAddress}</span>
+            <span class="detail-value">${escapeHtml(addressText)}</span>
         </div>
         <div class="detail-item">
-            <span class="detail-label">Курьер:</span>
-            <span class="detail-value">${courierName}</span>
-        </div>
-        <div class="detail-item">
-            <span class="detail-label">Сумма:</span>
-            <span class="detail-value">${priceText}</span>
+            <span class="detail-label">Комментарий:</span>
+            <span class="detail-value">${escapeHtml(messageText)}</span>
         </div>
         <div style="margin-top: 15px;">
             <h4>Товары:</h4>
             <div class="detail-items-list">
-                <p style="color: #999;">Информация о товарах отсутствует.</p>
+                ${itemsHtml}
             </div>
         </div>
-        <div class="detail-total">Итого: ${priceText}</div>
+        <div class="detail-total">Итого: ${formatPrice(total)} ₽</div>
     `;
 
     modal.classList.add('active');
@@ -629,6 +637,16 @@ function formatPrice(price) {
     if (!price) return '0';
     const num = typeof price === 'string' ? parseFloat(price) : Number(price);
     return isNaN(num) ? '0' : num.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 function getErrorMessage(error) {

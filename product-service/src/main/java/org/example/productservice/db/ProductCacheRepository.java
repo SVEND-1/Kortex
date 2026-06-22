@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.rest.ProductResponse;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Repository;
 
 import java.util.concurrent.TimeUnit;
@@ -22,11 +23,13 @@ public class ProductCacheRepository {
         return redisTemplate.opsForValue().get(key);
     }
 
+    @Async
     public void save(ProductResponse product) {
         String key = CACHE_KEY_PREFIX + product.id();
         redisTemplate.opsForValue().set(key, product, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
     }
 
+    @Async
     public void remove(Long productId) {
         String key = CACHE_KEY_PREFIX + productId;
         redisTemplate.delete(key);

@@ -11,28 +11,28 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface RoleRequestRepository  extends JpaRepository<RoleRequest, Long> {
+public interface RoleRequestRepository  extends JpaRepository<RoleRequestEntity, Long> {
 
     @Query("""
-        SELECT COUNT(r) > 0 FROM RoleRequest r
+        SELECT COUNT(r) > 0 FROM RoleRequestEntity r
         WHERE r.userId = :userId
         AND r.status = :status
     """)
     boolean existsByUserIdAndStatus(@Param("userId") Long userId,
-                                    @Param("status") RoleRequest.Status status);
+                                    @Param("status") RoleRequestEntity.Status status);
 
     @Query("""
-    SELECT r FROM RoleRequest r
+    SELECT r FROM RoleRequestEntity r
     WHERE (:role IS NULL OR r.requestedRole = :role)
     AND (:status IS NULL OR r.status = :status)
     AND (:type IS NULL OR r.typeAction = :type)
     ORDER BY r.createdAt DESC
 """)
-    Page<RoleRequest> findSearchFilter(@Param("role") Role role,
-                                   @Param("status")RoleRequest.Status status,
-                                   @Param("type") RoleRequest.TypeAction type,
-                                   Pageable pageable);
+    Page<RoleRequestEntity> findSearchFilter(@Param("role") Role role,
+                                             @Param("status") RoleRequestEntity.Status status,
+                                             @Param("type") RoleRequestEntity.TypeAction type,
+                                             Pageable pageable);
 
-    List<RoleRequest> getAllByUserId(Long userId);
+    List<RoleRequestEntity> getAllByUserId(Long userId);
 
 }

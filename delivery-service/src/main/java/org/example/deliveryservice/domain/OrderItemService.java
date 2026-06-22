@@ -8,10 +8,9 @@ import org.example.deliveryservice.db.OrderEntity;
 import org.example.deliveryservice.db.OrderItemEntity;
 import org.example.deliveryservice.db.OrderItemRepository;
 import org.example.deliveryservice.domain.http.ProductClientService;
-import org.example.rest.ProductResponse;
+import org.example.rest.ProductNoImageRestResponse;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,24 +22,17 @@ public class OrderItemService {
     private final OrderItemRepository orderItemRepository;
     private final ProductClientService productClientService;
 
-    public List<OrderItemEntity> createItems(OrderEntity order, List<ItemsDelivery> request) {
+    public void createItems(OrderEntity order, List<ItemsDelivery> request) {
         try {
             List<OrderItemEntity> itemEntities = new ArrayList<>();
 
             for (ItemsDelivery item : request) {
-                ProductResponse product = productClientService.getProduct(item.productId());
-                OrderItemEntity itemEntity = OrderItemEntity.builder()
-                        .id(item.itemId())
-                        .productId(item.productId())
-                        .quantity(item.quantity())
-                        .price(product.price())
-                        .order(order)
-                        .build();
+                ProductNoImageRestResponse product = productClientService.getProduct(item.productId());
+                OrderItemEntity itemEntity = buildOrderItem(item, product, order);
                 itemEntities.add(itemEntity);
             }
-            orderItemRepository.saveAll(itemEntities);
 
-            return itemEntities;
+            orderItemRepository.saveAll(itemEntities);
         }catch (Exception e){
             log.error("Не Удалось создать элементы заказа, ex={}",e.getMessage());
             throw new RuntimeException(e);
@@ -48,10 +40,13 @@ public class OrderItemService {
     }
 
 
-    private BigDecimal calculatePrice(Long productId, Integer quantity) {
-        ProductResponse product = productClientService.getProduct(productId);
-        BigDecimal price = product.price();
-        return price.multiply(BigDecimal.valueOf(quantity));
+    public OrderItemEntity buildOrderItem(ItemsDelivery item,ProductNoImageRestResponse product,OrderEntity order) {
+        return OrderItemEntity.builder()
+                .id(item.itemId())
+                .productId(item.productId())
+                .quantity(item.quantity())
+                .price(product.price())
+                .order(order)
+                .build();
     }
-
 }

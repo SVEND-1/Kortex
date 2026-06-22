@@ -33,7 +33,7 @@ public class OrderItemService {
                 OrderItemEntity itemEntity = OrderItemEntity.builder()
                         .productId(item.productId())
                         .quantity(item.quantity())
-                        .price(product.price())//TODO тут по моему цена продукта должна быть
+                        .price(product.price())
                         .build();
                 itemEntities.add(itemEntity);
             }
@@ -44,12 +44,4 @@ public class OrderItemService {
             throw new RuntimeException(e);
         }
     }
-
-
-    private BigDecimal calculatePrice(Long productId, Integer quantity) {
-        ProductResponse product = productClientService.getProduct(productId);
-        BigDecimal price = product.price();
-        return price.multiply(BigDecimal.valueOf(quantity));
-    }
-
 }

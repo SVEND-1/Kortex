@@ -3,10 +3,11 @@ package org.example.cartservice.domain;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.cartservice.db.Cart;
-import org.example.cartservice.db.CartItem;
+import org.example.cartservice.db.CartEntity;
+import org.example.cartservice.db.CartItemEntity;
 import org.example.cartservice.db.CartItemRepository;
 import org.example.cartservice.domain.exeptions.AccessDeniedException;
+import org.example.cartservice.domain.http.ProductClientService;
 import org.example.rest.ProductResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,10 +23,15 @@ public class CartItemService {
     private final CartItemRepository cartItemRepository;
     private final ProductClientService productClientService;
 
+    public CartItemEntity findByIdEntity(Long id){
+        return cartItemRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("CartItem не найден"));
+    }
+
     @Transactional
-    public void addItemToCart(Cart cart, Long productId) {
+    public void addItemToCart(CartEntity cart, Long productId) {
         try {
-            Optional<CartItem> existingCartItem = cartItemRepository.findByCartIdAndProductId(cart.getId(), productId);
+            Optional<CartItemEntity> existingCartItem = cartItemRepository.findByCartIdAndProductId(cart.getId(), productId);
 
             if (existingCartItem.isPresent()) {
                 incrementQuantity(existingCartItem.get());
@@ -39,48 +45,52 @@ public class CartItemService {
     }
 
     @Transactional
-    public void addItemToCartCompensate(Cart cart, Long productId,Integer quantity) {
+    public void addItemToCartCompensate(CartEntity cart, Long productId, Integer quantity) {
         try {
             ProductResponse product = productClientService.getProduct(productId);
-            CartItem cartItem = CartItem.builder()
-                    .cart(cart)
-                    .productId(productId)
-                    .quantity(quantity)
-                    .price(product.price())
-                    .build();
+            CartItemEntity cartItem = buildCartItem(cart,productId,quantity,product);
             cartItemRepository.save(cartItem);
         }catch (Exception e) {
-            log.error("Не удалось создать элемент корзины, ex={}", e.getMessage());
+            log.error("Не удалось создать элемент корзины для компенсации, ex={}", e.getMessage());
             throw new RuntimeException("Не удалось создать элемент корзины",e);
         }
     }
 
-    private void incrementQuantity(CartItem existingCartItem) {
+    private CartItemEntity buildCartItem(CartEntity cart, Long productId, Integer quantity,ProductResponse product){
+        return CartItemEntity.builder()
+                .cart(cart)
+                .productId(productId)
+                .quantity(quantity)
+                .price(product.price())
+                .build();
+    }
+
+    private void incrementQuantity(CartItemEntity existingCartItem) {
         existingCartItem.setQuantity(existingCartItem.getQuantity() + 1);
         existingCartItem.setPrice(calculatePrice(existingCartItem));
         cartItemRepository.save(existingCartItem);
     }
 
-    private void addCartItemToCart(Cart cart, Long productId) {
+    private void addCartItemToCart(CartEntity cart, Long productId) {
         ProductResponse product = productClientService.getProduct(productId);
 
-        CartItem cartItem = CartItem.builder()
+        CartItemEntity cartItem = CartItemEntity.builder()
                 .cart(cart)
                 .productId(productId)
                 .price(product.price())
                 .quantity(1)
                 .build();
+
         cartItemRepository.save(cartItem);
     }
 
     @Transactional
     public void updateIncrement(Long cartItemId,Long userId) {
         try {
-            CartItem cartItem = cartItemRepository.findById(cartItemId)
-                    .orElseThrow(() -> new EntityNotFoundException("CartItem не найден"));
+            CartItemEntity cartItem = findByIdEntity(cartItemId);
             verifyCartItemOwnership(cartItem,userId);
-            ProductResponse product = productClientService.getProduct(cartItem.getProductId());
 
+            ProductResponse product = productClientService.getProduct(cartItem.getProductId());
             validateProductInStock(product);
 
             incrementQuantity(product, cartItem);
@@ -97,7 +107,7 @@ public class CartItemService {
         }
     }
 
-    private void incrementQuantity(ProductResponse product,CartItem cartItem) {
+    private void incrementQuantity(ProductResponse product, CartItemEntity cartItem) {
         if (product.count() > cartItem.getQuantity()) {
             cartItem.setQuantity(cartItem.getQuantity() + 1);
             cartItem.setPrice(calculatePrice(cartItem));
@@ -109,8 +119,7 @@ public class CartItemService {
     @Transactional
     public void decreaseQuantityOrRemove(Long cartItemId,Long userId) {
         try {
-            CartItem cartItem = cartItemRepository.findById(cartItemId)
-                    .orElseThrow(() -> new EntityNotFoundException("CartItem не найден"));
+            CartItemEntity cartItem = findByIdEntity(cartItemId);
             verifyCartItemOwnership(cartItem,userId);
 
             if (cartItem.getQuantity() <= 1) {
@@ -125,7 +134,7 @@ public class CartItemService {
         }
     }
 
-    private void decreaseQuantity(CartItem cartItem) {
+    private void decreaseQuantity(CartItemEntity cartItem) {
         cartItem.setQuantity(cartItem.getQuantity() - 1);
         cartItem.setPrice(calculatePrice(cartItem));
         cartItemRepository.save(cartItem);
@@ -135,8 +144,7 @@ public class CartItemService {
     @Transactional
     public void removeItemFromCart(Long cartItemId,Long userId) {
         try {
-            CartItem cartItem = cartItemRepository.findById(cartItemId)
-                    .orElseThrow(() -> new EntityNotFoundException("CartItem не найден"));
+            CartItemEntity cartItem = findByIdEntity(cartItemId);
             verifyCartItemOwnership(cartItem,userId);
 
             cartItemRepository.delete(cartItem);
@@ -146,13 +154,13 @@ public class CartItemService {
         }
     }
 
-    private void verifyCartItemOwnership(CartItem cartItem, Long userId) {
+    private void verifyCartItemOwnership(CartItemEntity cartItem, Long userId) {
         if (!cartItem.getCart().getUserId().equals(userId)) {
             throw new AccessDeniedException("Пользователь не является владельцем этого элемента корзины");
         }
     }
 
-    private BigDecimal calculatePrice(CartItem cartItem) {
+    private BigDecimal calculatePrice(CartItemEntity cartItem) {
         ProductResponse product = productClientService.getProduct(cartItem.getProductId());
         BigDecimal price = product.price();
         return price.multiply(BigDecimal.valueOf(cartItem.getQuantity()));

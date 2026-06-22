@@ -19,7 +19,7 @@ import java.util.Map;
 
 @EnableKafka
 @Configuration
-public class KafkaConsumerConfig {
+public class KafkaConsumerConfig {//TODO можно просто было на object, так и сделать потом
 
     @Value("${spring.kafka.bootstrap-servers}")
     private String port;

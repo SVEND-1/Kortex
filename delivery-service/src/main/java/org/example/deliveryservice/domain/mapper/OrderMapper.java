@@ -5,6 +5,7 @@ import org.example.deliveryservice.db.Address;
 import org.example.deliveryservice.db.OrderEntity;
 import org.example.deliveryservice.db.OrderItemEntity;
 import org.example.rest.AddressRestResponse;
+import org.example.rest.ProductNoImageRestResponse;
 import org.example.rest.ProductResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -12,6 +13,7 @@ import org.mapstruct.Named;
 import org.springframework.data.domain.Page;
 
 import java.util.List;
+import java.util.Map;
 
 @Mapper(componentModel = "spring")
 public interface OrderMapper {
@@ -34,51 +36,67 @@ public interface OrderMapper {
         );
     }
 
-
     @Mapping(target = "product", ignore = true)
     OrderItemResponse toItemResponse(OrderItemEntity item);
 
     List<OrderItemResponse> toItemResponseList(List<OrderItemEntity> items);
 
-
     default OrderItemResponse toItemResponseWithProduct(
             OrderItemEntity item,
-            DeliveryProductResponse product
+            ProductNoImageRestResponse product
     ) {
         if (item == null) return null;
         OrderItemResponse basic = toItemResponse(item);
-
-        return new OrderItemResponse(
-                basic.id(),
-                product,
-                basic.quantity(),
-                basic.price()
-        );
+        return new OrderItemResponse(basic.id(), product, basic.quantity(), basic.price());
     }
 
-
-
-    default DeliveryProductResponse toDeliveryProduct(ProductResponse product) {
+    default ProductNoImageRestResponse toDeliveryProduct(ProductResponse product) {
         if (product == null) return null;
-        return new DeliveryProductResponse(
+        return new ProductNoImageRestResponse(
                 product.id(),
                 product.name(),
                 product.price(),
-                product.category(),
-                product.images()
+                product.category()
         );
     }
 
 
-    default OrderPageResponse toPageResponse(Page<OrderEntity> page) {
+    default OrderItemResponse toItemResponse(OrderItemEntity item, Map<Long, ProductNoImageRestResponse> productsById) {
+        if (item == null) return null;
+        ProductNoImageRestResponse product = productsById.get(item.getProductId());
+        return toItemResponseWithProduct(item, product);
+    }
+
+    default List<OrderItemResponse> toItemResponseList(List<OrderItemEntity> items, Map<Long, ProductNoImageRestResponse> productsById) {
+        if (items == null) return List.of();
+        return items.stream()
+                .map(item -> toItemResponse(item, productsById))
+                .toList();
+    }
+
+    default OrderResponse toResponse(OrderEntity order, Map<Long, ProductNoImageRestResponse> productsById) {
+        if (order == null) return null;
+        return new OrderResponse(
+                order.getId(),
+                order.getStatus(),
+                addressToResponse(order.getAddress()),
+                order.getMessage(),
+                toItemResponseList(order.getOrderItems(), productsById)
+        );
+    }
+
+    default List<OrderResponse> toResponseList(List<OrderEntity> orders, Map<Long, ProductNoImageRestResponse> productsById) {
+        if (orders == null) return List.of();
+        return orders.stream()
+                .map(order -> toResponse(order, productsById))
+                .toList();
+    }
+
+    default OrderPageResponse toPageResponse(Page<OrderEntity> page, Map<Long, ProductNoImageRestResponse> productsById) {
         if (page == null) {
-            return new OrderPageResponse(
-                    List.of(),
-                    0, 0, 0, 0,
-                    true, true, true
-            );
+            return new OrderPageResponse(List.of(), 0, 0, 0, 0, true, true, true);
         }
-        List<OrderResponse> content = toResponseList(page.getContent());
+        List<OrderResponse> content = toResponseList(page.getContent(), productsById);
         return new OrderPageResponse(
                 content,
                 page.getNumber(),
