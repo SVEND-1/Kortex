@@ -29,6 +29,11 @@ public class ProductFindManager {
     private final ProductCacheRepository productCacheRepository;
     private final ProductImageService productImageService;
 
+    public ProductEntity findByIdEntity(Long id){
+        return productRepository.findById(id).orElseThrow(
+                () -> new EntityNotFoundException("Продукт не найден с id=" + id));
+    }
+
     @Transactional(readOnly = true)
     public ProductPageResponse findProductsFilter(ProductSearchFilter filter) {
         try {
@@ -81,8 +86,7 @@ public class ProductFindManager {
                 return cached.withImages(activeUrls);
             }
 
-            ProductEntity productEntity = productRepository.findById(id).orElseThrow(
-                    () -> new EntityNotFoundException("Продукт не найден с id=" + id));
+            ProductEntity productEntity = findByIdEntity(id);
             ProductResponse productResponse = productMapper.convertEntityToDTO(productEntity);
 
             productCacheRepository.save(productResponse);
@@ -101,8 +105,7 @@ public class ProductFindManager {
                 return buildProductNoImageDto(cached);
             }
 
-            ProductEntity productEntity = productRepository.findById(id).orElseThrow(
-                    () -> new EntityNotFoundException("Продукт не найден с id=" + id));
+            ProductEntity productEntity = findByIdEntity(id);
             ProductResponse productResponse = productMapper.convertEntityToDTO(productEntity);
 
             productCacheRepository.save(productResponse);

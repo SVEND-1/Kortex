@@ -1,6 +1,7 @@
 package org.example.paymentservice.api;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
 import org.example.paymentservice.api.dto.response.receipt.ReceiptResponse;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/receipts")
 @RequiredArgsConstructor
+@Tag(name = "Receipt",description = "Работа с чеками")
 public class ReceiptController {
 
     private final ReceiptService receiptService;

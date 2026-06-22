@@ -31,7 +31,7 @@ public class AuthController {
     }
 
 
-    @Operation(summary = "Вход в систему существуещего пользователя")
+    @Operation(summary = "Вход в систему существующего пользователя")
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(
             @RequestBody @Valid LoginRequest loginRequest,
@@ -40,6 +40,7 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(loginRequest, response));
     }
 
+    @Operation(summary = "Выход из аккаунта")
     @PostMapping("/logout")
     public ResponseEntity<?> logout(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
@@ -53,7 +54,7 @@ public class AuthController {
 
         return ResponseEntity.ok(authService.logout(email, accessToken, response));
     }
-    @Operation(summary = "Заполения полей для регистации и отправка кода")
+    @Operation(summary = "Заполнение полей для регистрации и отправка кода")
     @PostMapping("/register/send-code")
     public ResponseEntity<RegistrationResponse> sendRegistrationCode(@RequestBody @Valid RegisterCodeRequest request) {
         return ResponseEntity.ok(authService.sendRegistrationCode(request));

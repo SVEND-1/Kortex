@@ -9,7 +9,6 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
-import java.util.List;
 
 @Repository
 public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
@@ -24,10 +23,6 @@ public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
     @Query("SELECT DISTINCT o FROM OrderEntity o WHERE o.courierId = :courierId")
     Page<OrderEntity> assignedOrdersPage(@Param("courierId") Long courierId,
                                          Pageable pageable);
-
-    @EntityGraph(attributePaths = {"orderItems"})
-    @Query("SELECT DISTINCT o FROM OrderEntity o WHERE o.courierId = :courierId ORDER BY o.courierTaken DESC")
-    List<OrderEntity> assignedOrders(@Param("courierId") Long courierId);
 
     @EntityGraph(attributePaths = {"orderItems"})
     @Query("SELECT DISTINCT o FROM OrderEntity o WHERE o.courierId IS NULL AND o.status = 'AWAIT_COURIER'")

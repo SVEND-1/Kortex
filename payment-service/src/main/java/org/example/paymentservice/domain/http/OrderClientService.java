@@ -1,8 +1,8 @@
-package org.example.paymentservice.domain;
+package org.example.paymentservice.domain.http;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.paymentservice.api.OrderFeignClient;
+import org.example.paymentservice.api.http.OrderFeignClient;
 import org.example.rest.OrderRestResponse;
 import org.springframework.stereotype.Service;
 

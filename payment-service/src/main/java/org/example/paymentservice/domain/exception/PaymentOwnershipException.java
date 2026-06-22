@@ -1,4 +1,4 @@
-package org.example.paymentservice.api.exception;
+package org.example.paymentservice.domain.exception;
 
 public class PaymentOwnershipException extends RuntimeException {
 

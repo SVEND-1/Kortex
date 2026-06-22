@@ -13,14 +13,9 @@ import org.example.deliveryservice.db.OrderStatus;
 import org.example.deliveryservice.domain.exception.CourierAccessDeniedException;
 import org.example.deliveryservice.domain.exception.UserNotCourierException;
 import org.example.deliveryservice.domain.http.OrderClientService;
-import org.example.deliveryservice.domain.http.ProductClientService;
-import org.example.deliveryservice.domain.mapper.OrderMapper;
 import org.example.deliveryservice.kafka.KafkaProducer;
 import org.example.kafkaEvent.ProductReturnEvent;
 import org.example.kafkaEvent.Role;
-import org.example.rest.ProductNoImageRestResponse;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,75 +24,47 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Slf4j
 @Component
 public class OrderCourierManager {
     private final OrderRepository orderRepository;
-    private final OrderMapper orderMapper;
     private final OrderClientService orderClientService;
     private final KafkaProducer kafkaProducer;
-    private final ProductClientService productClientService;
+    private final CourierFindManager courierFindManager;
 
     public OrderEntity findByIdEntity(Long id){
         return orderRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("Заказ не найден"));
     }
 
-    //TODO СОРТИРОВАТЬ ПО ORDER_ID
-    @Transactional
     public OrderPageResponse assignedCourierOrdersPage(OrdersSearchCourierFilter filter, String role, Long courierId) {
-        try {
-            validateRole(Role.valueOf(role));
-
-            Pageable pageable = buildPageable(filter.pageSize(),filter.pageNumber());
-            Page<OrderEntity> orders = orderRepository.assignedOrdersPage(courierId, pageable);
-            return buildOrderPage(orders);
-        }catch (Exception e){
-            log.error("Не удалось загрузить заказы курьера,ex={}",e.getMessage());
-            throw new RuntimeException(e);
-        }
+        validateRole(Role.valueOf(role));
+        return courierFindManager.assignedCourierOrdersPage(filter,courierId);
     }
 
     @Transactional(readOnly = true)
     public OrderPageResponse availableCourierOrdersPage(Integer pageSize ,Integer pageNumber){
+        return courierFindManager.availableCourierOrdersPage(pageSize,pageNumber);
+    }
+
+    @Transactional
+    public void setStatusToPending(Long orderId){
         try {
-            Pageable pageable = buildPageable(pageSize,pageNumber);
-            Page<OrderEntity> orders = orderRepository.availableOrdersPage(pageable);
-            return buildOrderPage(orders);
+            OrderEntity order = findByIdEntity(orderId);
+            order.setStatus(OrderStatus.AWAIT_COURIER);
+            orderRepository.save(order);
         }catch (Exception e){
-            log.error("Не удалось загрузить доступные заказы,ex={}",e.getMessage());
-            throw new RuntimeException(e);
+            log.error("Не удалось изменить заказ в состояние ожидание курьера,ex={}",e.getMessage());
+            throw new RuntimeException("Не удалось изменить заказ в состояние ожидание курьера", e);
         }
     }
-
-    private OrderPageResponse buildOrderPage(Page<OrderEntity> orders){
-        Map<Long, ProductNoImageRestResponse> productsById = orders.getContent().stream()
-                .flatMap(order -> order.getOrderItems().stream())
-                .map(OrderItemEntity::getProductId)
-                .distinct()
-                .collect(Collectors.toMap(
-                        Function.identity(),
-                        productClientService::getProduct
-                ));
-
-        return orderMapper.toPageResponse(orders, productsById);
-    }
-
 
     @Transactional()
     public void setCourier(Long orderId, Long courierId,String role) {
         try {
             validateRole(Role.valueOf(role));
-
-            List<OrderStatus> inactiveStatuses = Arrays.asList(OrderStatus.COMPLETED,
-                    OrderStatus.CANCELLED,OrderStatus.RETURNED);
-            boolean hasActiveOrder = orderRepository.existsByCourierIdAndStatusNotIn(courierId, inactiveStatuses);
-            if (hasActiveOrder) {
-                throw new IllegalStateException("Курьер уже занят на другом заказе");
-            }
+            isActiveOrdersByCourier(courierId);
 
             OrderEntity order = findByIdEntity(orderId);
 
@@ -113,18 +80,15 @@ public class OrderCourierManager {
         }
     }
 
-
-    @Transactional
-    public void setStatusToPending(Long orderId){
-        try {
-            OrderEntity order = findByIdEntity(orderId);
-            order.setStatus(OrderStatus.AWAIT_COURIER);
-            orderRepository.save(order);
-        }catch (Exception e){
-            log.error("Не удалось изменить заказ в состояние ожидание курьера,ex={}",e.getMessage());
-            throw new RuntimeException("Не удалось изменить заказ в состояние ожидание курьера", e);
+    private void isActiveOrdersByCourier(Long courierId){
+        List<OrderStatus> inactiveStatuses = Arrays.asList(OrderStatus.COMPLETED,
+                OrderStatus.CANCELLED,OrderStatus.RETURNED);
+        boolean hasActiveOrder = orderRepository.existsByCourierIdAndStatusNotIn(courierId, inactiveStatuses);
+        if (hasActiveOrder) {
+            throw new IllegalStateException("Курьер уже занят на другом заказе");
         }
     }
+
 
     @Transactional
     public void setStatus(Long orderId, OrderStatus status,Long userId) {
@@ -132,15 +96,11 @@ public class OrderCourierManager {
             OrderEntity order = findByIdEntity(orderId);
 
             validateCourierForOrder(userId,order.getCourierId());
-
-            if(order.getStatus().equals(OrderStatus.CREATED) || order.getStatus().equals(OrderStatus.COMPLETED)) {
-                throw new RuntimeException("Заказ только создан или уже завершен");
-            }
+            validOrderStatus(order);
 
             if (status == OrderStatus.CANCELLED) {
                 order.setCourierId(null);
                 status = OrderStatus.AWAIT_COURIER;
-                log.warn("Курьер отказался от заказа, id={}", order.getId());
             }
             if (status == OrderStatus.RETURNED) {
                 returningProductsToBack(order.getId());
@@ -173,15 +133,15 @@ public class OrderCourierManager {
         }
     }
 
-    private Pageable buildPageable(Integer size,Integer number) {
-        int pageSize = size != null ? size : 8;
-        int pageNumber = number != null ? number : 0;
-        return Pageable.ofSize(pageSize).withPage(pageNumber);
-    }
-
     public void validateCourierForOrder(Long courierId, Long courierIdByOrder) {
         if(!courierId.equals(courierIdByOrder)) {
             throw new CourierAccessDeniedException("Курьер не может менять не свой заказ");
+        }
+    }
+
+    public void validOrderStatus(OrderEntity order) {
+        if(order.getStatus().equals(OrderStatus.CREATED) || order.getStatus().equals(OrderStatus.COMPLETED)) {
+            throw new RuntimeException("Заказ только создан или уже завершен");
         }
     }
 

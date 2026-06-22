@@ -1,4 +1,4 @@
-package org.example.deliveryservice.api.feignClient;
+package org.example.deliveryservice.api.http;
 
 import org.example.rest.AddressRestResponse;
 import org.springframework.cloud.openfeign.FeignClient;

@@ -1,8 +1,7 @@
-package org.example.paymentservice.api;
+package org.example.paymentservice.api.http;
 
 import org.example.rest.OrderRestResponse;
 import org.springframework.cloud.openfeign.FeignClient;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;

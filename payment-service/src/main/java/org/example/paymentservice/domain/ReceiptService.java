@@ -5,7 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.common.errors.ApiException;
 import org.example.paymentservice.api.dto.response.receipt.ReceiptResponse;
-import org.example.paymentservice.api.exception.PaymentOwnershipException;
+import org.example.paymentservice.domain.exception.PaymentOwnershipException;
 import org.example.paymentservice.db.PaymentEntity;
 import org.example.paymentservice.db.PaymentRepository;
 import org.example.paymentservice.domain.mapper.ReceiptMapper;
@@ -21,6 +21,7 @@ public class ReceiptService {
     private final PaymentRepository paymentRepository;
     private final ReceiptMapper receiptMapper;
     private final ReceiptManager receiptManager;
+    private final YooKassaManagar yooKassaManagar;
 
     @Transactional
     public ReceiptResponse createReceipt(String paymentId,String email,Long userId) {
@@ -36,8 +37,25 @@ public class ReceiptService {
     }
 
     public ReceiptResponse findReceipt(String paymentId,Long userId) {
-        isValidUser(paymentId,userId);
-        return receiptYooKassaService.findReceiptDTO(paymentId);
+        try {
+            isValidUser(paymentId,userId);
+            PaymentEntity payment = paymentRepository.findByPaymentId(paymentId)
+                    .orElseThrow(() -> new EntityNotFoundException("Платеж не найден"));
+
+            if (payment.getReceiptId() == null) {
+                return new ReceiptResponse(
+                        null,null,null,null,null,
+                        null,null,null,null,
+                        null,null,null,null
+                );//TODO переделать
+            }
+
+            Receipt receipt = yooKassaManagar.findReceipt(payment.getReceiptId());
+            return receiptMapper.convertReceiptToReceiptResponse(receipt,String.valueOf(payment.getAmount()));
+        } catch (Exception e) {
+            log.error("Ошибка поиска чека,ex={}", e.getMessage());
+            throw new RuntimeException("Чек не найден", e);
+        }
     }
 
     public void isValidUser(String paymentId,Long userId) {

@@ -27,7 +27,7 @@ public class OrderItemService {
             List<OrderItemEntity> itemEntities = new ArrayList<>();
 
             for (ItemsDelivery item : request) {
-                ProductNoImageRestResponse product = productClientService.getProduct(item.productId());
+                ProductNoImageRestResponse product = productClientService.getProduct(item.productId());//TODO оптимизировать
                 OrderItemEntity itemEntity = buildOrderItem(item, product, order);
                 itemEntities.add(itemEntity);
             }

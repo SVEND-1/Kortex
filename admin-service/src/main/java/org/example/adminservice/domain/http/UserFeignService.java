@@ -1,7 +1,7 @@
 package org.example.adminservice.domain.http;
 
 import lombok.RequiredArgsConstructor;
-import org.example.adminservice.api.UserFeignClient;
+import org.example.adminservice.api.http.UserFeignClient;
 import org.example.rest.UserRestResponse;
 import org.springframework.stereotype.Service;
 

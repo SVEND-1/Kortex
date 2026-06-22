@@ -4,9 +4,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.example.orderservice.api.dto.OrderCreateRequest;
-import org.example.orderservice.api.dto.OrderItemCreateRequest;
 import org.example.orderservice.api.dto.OrderResponseDTO;
-import org.example.orderservice.db.OrderStatus;
 import org.example.orderservice.domain.OrderService;
 import org.example.rest.OrderRestResponse;
 import org.springframework.http.ResponseEntity;
@@ -48,7 +46,7 @@ public class OrderController {
             @RequestParam String status,
             @RequestHeader(value = "X-User-Id", required = false) Long userId
     ){
-        orderService.updateStatusRest(orderId,status,userId);
+        orderService.updateStatusRest(orderId,status);
         return ResponseEntity.ok().build();
     }
 

@@ -4,13 +4,11 @@ import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.paymentservice.api.dto.response.receipt.ReceiptResponse;
 import org.example.paymentservice.db.PaymentEntity;
 import org.example.paymentservice.db.PaymentRepository;
-import org.example.paymentservice.domain.mapper.ReceiptMapper;
+import org.example.paymentservice.domain.http.OrderClientService;
 import org.example.rest.OrderRestResponse;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Repository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.loolzaaa.youkassa.client.ApiClient;
@@ -21,12 +19,10 @@ import ru.loolzaaa.youkassa.pojo.Amount;
 import ru.loolzaaa.youkassa.pojo.Customer;
 import ru.loolzaaa.youkassa.pojo.Item;
 import ru.loolzaaa.youkassa.pojo.Settlement;
-import ru.loolzaaa.youkassa.processors.PaymentProcessor;
 import ru.loolzaaa.youkassa.processors.ReceiptProcessor;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -35,11 +31,11 @@ public class ReceiptYooKassaService {
 
     private final PaymentRepository paymentRepository;
     private final YooKassaManagar yooKassaManagar;
-    private final ReceiptMapper receiptMapper;
     private final OrderClientService orderClientService;
 
     private ReceiptProcessor receiptProcessor;
     private ApiClient apiClient;
+
     @Value("${shop_id}")
     private String shopId;
 
@@ -52,8 +48,6 @@ public class ReceiptYooKassaService {
                 .configureBasicAuth(shopId, secretKey)
                 .build();
         receiptProcessor = new ReceiptProcessor(apiClient);
-
-        log.info("YooKassa инициализирована");
     }
 
     @Transactional
@@ -69,35 +63,11 @@ public class ReceiptYooKassaService {
                     .orElseThrow(() -> new EntityNotFoundException("Платеж не найден"));
             List<OrderRestResponse> order = orderClientService.getOrder(paymentEntity.getOrderId());
 
-            Customer customer = Customer.builder()
-                    .email(email)
-                    .build();
-
-            List<Item> items = order.stream()
-                    .map(orderItem -> Item.builder()
-                            .description("Товар #" + orderItem.productId())
-                            .amount(Amount.builder()
-                                    .value(orderItem.price().toString())
-                                    .currency(payment.getAmount().getCurrency())
-                                    .build())
-                            .quantity(orderItem.quantity().toString())
-                            .vatCode(1)
-                            .build())
-                    .toList();
-
-            BigDecimal totalItemsSum = order.stream()
-                    .map(el -> el.price().multiply(new BigDecimal(el.quantity())))
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-            Amount settlementAmount = Amount.builder()
-                    .value(totalItemsSum.toString())
-                    .currency(payment.getAmount().getCurrency())
-                    .build();
-
-            Settlement settlement = Settlement.builder()
-                    .type(getSettlementType(payment))
-                    .amount(settlementAmount)
-                    .build();
+            Customer customer = buildCustomer(email);
+            List<Item> items = buildItems(order, payment);
+            BigDecimal totalItemsSum = calculateTotalAmount(order);
+            Amount settlementAmount = buildAmount(totalItemsSum, payment);
+            Settlement settlement = buildSettlement(settlementAmount,payment);
 
             Receipt receipt = Receipt.builder()
                     .type(Receipt.Type.PAYMENT)
@@ -115,24 +85,44 @@ public class ReceiptYooKassaService {
         }
     }
 
-    public ReceiptResponse findReceiptDTO(String paymentId) {//Надо чтобы не dto
-        try {
-            PaymentEntity payment = paymentRepository.findByPaymentId(paymentId)
-                    .orElseThrow(() -> new EntityNotFoundException("Платеж не найден"));
+    private Customer buildCustomer(String email) {
+        return Customer.builder()
+                .email(email)
+                .build();
+    }
 
-            if (payment.getReceiptId() == null) {
-                log.warn("Чек ещё не создан");
-                return new ReceiptResponse(
-                        null,null,null,null,null,null,null,null,null,null,null,null,null
-                );//TODO переделать весь метод у payment есть сохранение чека
-            }
+    private List<Item> buildItems(List<OrderRestResponse> order,Payment payment) {
+        return order.stream()
+                .map(orderItem -> Item.builder()
+                        .description("Товар #" + orderItem.productId())
+                        .amount(Amount.builder()
+                                .value(orderItem.price().toString())
+                                .currency(payment.getAmount().getCurrency())
+                                .build())
+                        .quantity(orderItem.quantity().toString())
+                        .vatCode(1)
+                        .build())
+                .toList();
+    }
 
-            Receipt receipt = receiptProcessor.findById(payment.getReceiptId());
-            return receiptMapper.convertReceiptToReceiptResponse(receipt,String.valueOf(payment.getAmount()));
-        } catch (Exception e) {
-            log.error("Ошибка поиска чека,ex={}", e.getMessage());
-            throw new RuntimeException("Чек не найден", e);
-        }
+    private BigDecimal calculateTotalAmount(List<OrderRestResponse> order) {
+        return order.stream()
+                .map(el -> el.price().multiply(new BigDecimal(el.quantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private Amount buildAmount(BigDecimal totalAmount, Payment payment) {
+        return Amount.builder()
+                .value(totalAmount.toString())
+                .currency(payment.getAmount().getCurrency())
+                .build();
+    }
+
+    private Settlement buildSettlement(Amount amount,Payment payment) {
+        return Settlement.builder()
+                .type(getSettlementType(payment))
+                .amount(amount)
+                .build();
     }
 
     private String getSettlementType(Payment payment) {

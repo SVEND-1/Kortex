@@ -9,6 +9,8 @@ import org.example.command.ItemsDelivery;
 import org.example.orderservice.api.dto.OrderCreateRequest;
 import org.example.orderservice.api.dto.OrderResponseDTO;
 import org.example.orderservice.db.*;
+import org.example.orderservice.domain.http.DeliveryFeignService;
+import org.example.orderservice.domain.http.UserClientService;
 import org.example.orderservice.domain.mapper.OrderMapper;
 import org.example.orderservice.kafka.KafkaProducer;
 import org.example.rest.AddressRestResponse;
@@ -26,11 +28,7 @@ import static org.example.Topics.DELIVERY_CREATE_ORDER_COMMAND;
 @Service
 public class OrderService {
     private final OrderRepository orderRepository;
-//    private final UserService userService;
-    // private final OrderCourierManager manager;
-//    private final CartMapper cartMapper;
     private final OrderCreateManager orderCreateManager;
-//    private final UserMapper userMapper;
     private final OrderMapper orderMapper;
     private final UserClientService userClientService;
 
@@ -38,6 +36,10 @@ public class OrderService {
     private final KafkaProducer kafkaProducer;
     private final DeliveryFeignService deliveryFeignService;
 
+    private OrderEntity findByIdEntity(Long id){
+        return orderRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Заказ не найден"));
+    }
 
     @Transactional
     public List<OrderRestResponse> getRest(Long orderId){
@@ -49,7 +51,6 @@ public class OrderService {
                 ).toList();
     }
 
-    //TODO сделать расчет другой
     public List<OrderResponseDTO> getHistoryOrders(Long userId){//TODO Добавить паггинацию
         try {
             List<OrderEntity> orders = orderRepository.findAllByUserId(userId);
@@ -65,6 +66,16 @@ public class OrderService {
     @Transactional
     public Long create(Long userId, OrderCreateRequest orderCreateRequest){
         AddressRestResponse rest = userClientService.getAddress(userId,userId);
+        validRequestAndAddress(rest,orderCreateRequest);
+
+        Address address = new Address(rest.region(), rest.city(),rest.street(), rest.house(),rest.apartment());
+        OrderEntity order = orderCreateManager.createOrder(userId, address,orderCreateRequest);
+
+        sendDeliveryCommand(order.getId(),userId,rest,order.getOrderItems(), orderCreateRequest.comment());
+        return order.getId();
+    }
+
+    private void validRequestAndAddress(AddressRestResponse rest,OrderCreateRequest orderCreateRequest){
         if(rest == null){
             log.warn("Для создание заказа необходим адрес");
             throw new NoSuchElementException("Для создание заказа необходим адрес");
@@ -73,17 +84,12 @@ public class OrderService {
             log.warn("Товары для заказа не выбраны");
             throw new RuntimeException("Товары для заказа не выбраны");
         }
-
-        Address address = new Address(rest.region(), rest.city(),rest.street(),
-                rest.house(),rest.apartment());
-        OrderEntity order = orderCreateManager.createOrder(userId, address, orderCreateRequest.comment(), orderCreateRequest.request());
-
-        sendDeliveryCommand(order.getId(),userId,rest,order.getOrderItems(), orderCreateRequest.comment());
-        return order.getId();
     }
 
     private void sendDeliveryCommand(Long orderId, Long userId, AddressRestResponse address, List<OrderItemEntity> itemEntities,String comment){
-        List<ItemsDelivery> items = itemEntities.stream().map(el -> new ItemsDelivery(el.getId(),el.getProductId(),el.getQuantity())).toList();
+        List<ItemsDelivery> items = itemEntities.stream()
+                .map(el -> new ItemsDelivery(el.getId(),el.getProductId(),el.getQuantity()))
+                .toList();
         DeliveryCommand deliveryCommand = new DeliveryCommand(orderId,userId,address,items,comment);
         kafkaTemplate.send(DELIVERY_CREATE_ORDER_COMMAND,String.valueOf(orderId),deliveryCommand);
     }
@@ -91,8 +97,7 @@ public class OrderService {
 
     public void updateStatusSaga(Long orderId, OrderStatus status){
         try {
-            OrderEntity order = orderRepository.findById(orderId)
-                    .orElseThrow(() -> new EntityNotFoundException("Заказ не найден"));
+            OrderEntity order = findByIdEntity(orderId);
             order.setStatus(status);
             orderRepository.save(order);
 
@@ -103,11 +108,9 @@ public class OrderService {
         }
     }
 
-    public void updateStatusRest(Long orderId, String status,Long userId){
+    public void updateStatusRest(Long orderId, String status){
         try {
-            OrderEntity order = orderRepository.findById(orderId)
-                    .orElseThrow(() -> new EntityNotFoundException("Заказ не найден"));
-
+            OrderEntity order = findByIdEntity(orderId);
             order.setStatus(OrderStatus.valueOf(status.toUpperCase()));
             orderRepository.save(order);
         }catch (Exception e){

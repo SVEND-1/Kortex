@@ -8,16 +8,19 @@ import org.springframework.stereotype.Component;
 import ru.loolzaaa.youkassa.client.ApiClient;
 import ru.loolzaaa.youkassa.client.ApiClientBuilder;
 import ru.loolzaaa.youkassa.model.Payment;
+import ru.loolzaaa.youkassa.model.Receipt;
 import ru.loolzaaa.youkassa.processors.PaymentProcessor;
+import ru.loolzaaa.youkassa.processors.ReceiptProcessor;
 
 @Slf4j
 @RequiredArgsConstructor
 @Component
 public class YooKassaManagar {
 
-    private final PaymentYooKassaService yooKassaManager;
-    private PaymentProcessor paymentProcessor;
     private ApiClient apiClient;
+    private PaymentProcessor paymentProcessor;
+    private ReceiptProcessor receiptProcessor;
+
     @Value("${shop_id}")
     private String shopId;
 
@@ -30,11 +33,14 @@ public class YooKassaManagar {
                 .configureBasicAuth(shopId, secretKey)
                 .build();
         paymentProcessor = new PaymentProcessor(apiClient);
-
-        log.info("YooKassa инициализирована");
+        receiptProcessor = new ReceiptProcessor(apiClient);
     }
 
     public Payment findPayment(String paymentId) {
-        return yooKassaManager.findPayment(paymentProcessor,paymentId);
+        return paymentProcessor.findById(paymentId);
+    }
+
+    public Receipt findReceipt(String receiptId) {
+        return receiptProcessor.findById(receiptId);
     }
 }

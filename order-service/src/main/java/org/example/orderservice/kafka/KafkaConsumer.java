@@ -6,10 +6,7 @@ import org.example.orderservice.db.OrderStatus;
 import org.example.orderservice.domain.OrderService;
 import org.example.saga.command.approve.UpdateOrderStatusCommand;
 import org.example.saga.command.compensate.CancelOrderCommand;
-import org.example.saga.event.approve.OrderStatusUpdatedEvent;
-import org.example.saga.event.failed.OrderStatusUpdatedFailedEvent;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
 import static org.example.saga.KafkaTopics.*;
@@ -19,19 +16,15 @@ import static org.example.saga.KafkaTopics.*;
 @Service
 public class KafkaConsumer {
     private final OrderService orderService;
-    private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final KafkaProducer kafkaProducer;
 
     @KafkaListener(topics = ORDER_STATUS_COMMAND,groupId = "order-service")
     public void handlerOderStatusCommand(UpdateOrderStatusCommand command) {
         try {
             orderService.updateStatusSaga(command.orderId(), OrderStatus.PENDING);
-
-            OrderStatusUpdatedEvent event = new OrderStatusUpdatedEvent(command.sagaId());
-            kafkaTemplate.send(ORDER_STATUS_APPROVE_EVENT,command.sagaId(),event);
+            kafkaProducer.sendOrderUpdateStatusApprove(command);
         }catch (Exception e){
-            OrderStatusUpdatedFailedEvent event = new OrderStatusUpdatedFailedEvent(command.sagaId(),
-                    "Не удалось обновить статус заказа");
-            kafkaTemplate.send(ORDER_STATUS_FAILED_EVENT,command.sagaId(),event);
+            kafkaProducer.sendOrderUpdateStatusFailed(command,e.getMessage());
         }
     }
 

@@ -1,8 +1,8 @@
 package org.example.orderservice.domain;
 
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.orderservice.api.dto.OrderCreateRequest;
 import org.example.orderservice.api.dto.OrderItemCreateRequest;
 import org.example.orderservice.db.*;
 import org.example.orderservice.kafka.KafkaProducer;
@@ -23,43 +23,20 @@ public class OrderCreateManager {
     private final OrderItemService orderItemService;
     private final KafkaProducer kafkaProducer;
 
-
-    public OrderEntity getByIdEntity(Long id){
-        return orderRepository.findById(id).orElseThrow(
-                () -> new EntityNotFoundException("Не удалось найти заказа с id=" + id));
-    }
-
     @Transactional
     public OrderEntity createOrder(Long userId, Address address,
-                            String message, List<OrderItemCreateRequest> request
+                           OrderCreateRequest request
     ){
         try {
-            OrderEntity order = OrderEntity.builder()
-                    .userId(userId)
-                    .status(OrderStatus.CREATED)
-                    .address(address)
-                    .message(message)
-                    .orderDate(LocalDateTime.now())
-                    .build();
+            OrderEntity order = buildEntity(userId, address, request);
+            List<OrderItemEntity> orderItems = createOrderItems(order,request.request());
+            BigDecimal totalAmount = calculateTotalAmount(orderItems);
 
-            List<OrderItemEntity> itemEntities = orderItemService.createItems(request);
-            BigDecimal totalAmount = BigDecimal.ZERO;
-
-            for (OrderItemEntity item : itemEntities) {
-                item.setOrder(order);
-                totalAmount = totalAmount.add(item.getPrice());
-            }
             order.setTotalAmount(totalAmount);
-            order.setOrderItems(itemEntities);
-
+            order.setOrderItems(orderItems);
             OrderEntity saved = orderRepository.save(order);
 
-
-            List<OrderItem> items = saved.getOrderItems().stream()
-                    .map(el -> new OrderItem(el.getProductId(), el.getQuantity()))
-                    .toList();
-
-            kafkaProducer.sendStartSaga(new StartSagaEvent(userId, saved.getId(), items, totalAmount));
+            sendToKafka(order,userId,totalAmount);
             return saved;
         }catch (Exception e){
             log.error("Ошибка создание заказа,ex={}", e.getMessage());
@@ -67,20 +44,36 @@ public class OrderCreateManager {
         }
     }
 
-//    private void isValid(User user,Cart cart) {
-//        if(user.getAddress() == null){
-//            log.warn("Для создание заказа необходим адрес");
-//            throw new NoSuchElementException("Для создание заказа необходим адрес");
-//        }
-//
-//        if (cart == null) {
-//            log.warn("Корзина не найдена для пользователя с id={}", user.getId());
-//            throw new NoSuchElementException("Корзина не найдена для пользователя с ID: " + user.getId());
-//        }
-//
-//        if (cart.getCartItems() == null || cart.getCartItems().isEmpty()) {//TODO Добавить своё исключение
-//            log.warn("Корзина пуста, невозможно создать заказ");
-//            throw new RuntimeException("Корзина пуста, невозможно создать заказ");
-//        }
-//    }
+    private OrderEntity buildEntity(Long userId, Address address, OrderCreateRequest request){
+        return OrderEntity.builder()
+                .userId(userId)
+                .status(OrderStatus.CREATED)
+                .address(address)
+                .message(request.comment())
+                .orderDate(LocalDateTime.now())
+                .build();
+    }
+
+    private List<OrderItemEntity> createOrderItems(OrderEntity order, List<OrderItemCreateRequest> itemsRequest) {
+        List<OrderItemEntity> items = orderItemService.createItems(itemsRequest);
+        for (OrderItemEntity item : items) {
+            item.setOrder(order);
+        }
+        return items;
+    }
+
+    private BigDecimal calculateTotalAmount(List<OrderItemEntity> items) {
+        return items.stream()
+                .map(item -> item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private void sendToKafka(OrderEntity saved,Long userId,BigDecimal totalAmount){
+        List<OrderItem> items = saved.getOrderItems().stream()
+                .map(el -> new OrderItem(el.getProductId(), el.getQuantity()))
+                .toList();
+
+        kafkaProducer.sendStartSaga(new StartSagaEvent(userId, saved.getId(), items, totalAmount));
+    }
+
 }

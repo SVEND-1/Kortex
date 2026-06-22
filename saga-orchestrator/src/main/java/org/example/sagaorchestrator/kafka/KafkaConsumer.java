@@ -19,8 +19,6 @@ import static org.example.saga.KafkaTopics.*;
 public class KafkaConsumer {
     private final SagaOrchestratorService sagaOrchestratorService;
 
-    //Получать на каждый метод из оркестратора  вызывать
-
     @KafkaListener(topics = START_SAGA,groupId = "saga-orchestrator")
     public void handleStartSaga(StartSagaEvent event){
         sagaOrchestratorService.startSaga(event);

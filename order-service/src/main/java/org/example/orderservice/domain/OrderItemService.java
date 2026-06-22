@@ -3,16 +3,13 @@ package org.example.orderservice.domain;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.orderservice.api.ProductFeignClient;
 import org.example.orderservice.api.dto.OrderItemCreateRequest;
 import org.example.orderservice.db.OrderItemEntity;
-import org.example.orderservice.db.OrderItemRepository;
+import org.example.orderservice.domain.http.ProductClientService;
+import org.example.rest.ProductNoImageRestResponse;
 import org.example.rest.ProductResponse;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -21,7 +18,6 @@ import java.util.List;
 @Service
 public class OrderItemService {
 
-    private final OrderItemRepository orderItemRepository;
     private final ProductClientService productClientService;
 
     public List<OrderItemEntity> createItems(List<OrderItemCreateRequest> request) {
@@ -29,12 +25,8 @@ public class OrderItemService {
             List<OrderItemEntity> itemEntities = new ArrayList<>();
 
             for (OrderItemCreateRequest item : request) {
-                ProductResponse product = productClientService.getProduct(item.productId());
-                OrderItemEntity itemEntity = OrderItemEntity.builder()
-                        .productId(item.productId())
-                        .quantity(item.quantity())
-                        .price(product.price())
-                        .build();
+                ProductNoImageRestResponse product = productClientService.getProduct(item.productId());
+                OrderItemEntity itemEntity = buildOrderItemEntity(item, product);
                 itemEntities.add(itemEntity);
             }
 
@@ -43,5 +35,13 @@ public class OrderItemService {
             log.error("Не Удалось создать элементы заказа, ex={}",e.getMessage());
             throw new RuntimeException(e);
         }
+    }
+
+    private OrderItemEntity buildOrderItemEntity(OrderItemCreateRequest item,ProductNoImageRestResponse product) {
+        return OrderItemEntity.builder()
+                .productId(item.productId())
+                .quantity(item.quantity())
+                .price(product.price())
+                .build();
     }
 }

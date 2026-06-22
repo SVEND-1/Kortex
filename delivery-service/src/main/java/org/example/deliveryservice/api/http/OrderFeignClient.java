@@ -1,4 +1,4 @@
-package org.example.deliveryservice.api.feignClient;
+package org.example.deliveryservice.api.http;
 
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;

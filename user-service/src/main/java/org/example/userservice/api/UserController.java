@@ -5,7 +5,6 @@ import org.example.rest.AddressRestResponse;
 import org.example.rest.UserRestResponse;
 import org.example.userservice.api.dto.request.AddressUpdatedRequest;
 import org.example.userservice.api.dto.response.UserResponse;
-import org.example.userservice.db.Address;
 import org.example.userservice.domain.UserService;
 import org.example.userservice.domain.expetions.AccessDeniedException;
 import org.springframework.http.ResponseEntity;

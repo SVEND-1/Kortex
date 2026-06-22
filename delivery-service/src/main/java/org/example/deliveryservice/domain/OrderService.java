@@ -4,13 +4,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.command.DeliveryCommand;
 import org.example.command.DeliveryDeletedCommand;
-import org.example.command.ItemsDelivery;
 import org.example.deliveryservice.db.*;
 import org.example.rest.AddressRestResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.NoSuchElementException;
 
 @RequiredArgsConstructor
@@ -29,23 +27,21 @@ public class OrderService {
         Address address = new Address(rest.region(), rest.city(),rest.street(),
                 rest.house(),rest.apartment());
 
-        createOrder(command.orderId(),command.userId(), address, command.comment(), command.items());
+        createOrder(command,address);
     }
 
-    private void createOrder(Long orderId,Long userId, Address address,
-                                   String message, List<ItemsDelivery> request
-    ){
+    private void createOrder(DeliveryCommand command,Address address){
         try {
             OrderEntity order = OrderEntity.builder()
-                    .id(orderId)
-                    .userId(userId)
+                    .id(command.orderId())
+                    .userId(command.userId())
                     .status(OrderStatus.CREATED)
                     .address(address)
-                    .message(message)
+                    .message(command.comment())
                     .build();
 
             OrderEntity saved = orderRepository.save(order);
-            orderItemService.createItems(saved,request);
+            orderItemService.createItems(saved,command.items());
         }catch (Exception e){
             log.error("Ошибка создание заказа,ex={}", e.getMessage());
             throw new RuntimeException(e);

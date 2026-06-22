@@ -47,7 +47,8 @@ public class RoleRequestService {
     }
 
     public RoleRequestResponse getRoleRequest(Long roleRequestId) {
-        return roleRequestMapper.convertEntityToDto(roleRequestRepository.findById(roleRequestId).orElseThrow(() -> new EntityNotFoundException("Заявка не найдена")));
+        return roleRequestMapper.convertEntityToDto(roleRequestRepository.findById(roleRequestId)
+                .orElseThrow(() -> new EntityNotFoundException("Заявка не найдена")));
     }
 
     @Async("asyncExecutor")
@@ -158,8 +159,6 @@ public class RoleRequestService {
             throw new RuntimeException("Не удалось отклонить заявку: " + ex.getMessage());
         }
     }
-
-
 
     private boolean hasPendingRequestForSameAction(Long userId) {
         return roleRequestRepository.existsByUserIdAndStatus(userId, RoleRequestEntity.Status.PENDING);

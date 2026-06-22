@@ -1,9 +1,9 @@
-package org.example.deliveryservice.domain.http;
+package org.example.orderservice.domain.http;
 
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.deliveryservice.api.http.ProductFeignClient;
+import org.example.orderservice.api.http.ProductFeignClient;
 import org.example.rest.ProductNoImageRestResponse;
 import org.springframework.stereotype.Service;
 

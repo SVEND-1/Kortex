@@ -5,7 +5,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.paymentservice.db.PaymentEntity;
 import org.example.paymentservice.db.PaymentRepository;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import ru.loolzaaa.youkassa.model.Receipt;
 
