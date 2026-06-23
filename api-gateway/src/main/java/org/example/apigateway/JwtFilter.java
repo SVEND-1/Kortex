@@ -12,6 +12,9 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpCookie;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
@@ -19,6 +22,7 @@ import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 
 import java.security.Key;
+import java.util.Collections;
 import java.util.List;
 
 @Slf4j
@@ -92,7 +96,6 @@ public class JwtFilter implements WebFilter {
             return unauthorized(exchange);
         }
 
-
         Claims claims;
         try {
             claims = Jwts.parserBuilder()
@@ -105,23 +108,35 @@ public class JwtFilter implements WebFilter {
             return unauthorized(exchange);
         }
 
-
         Object redisEmail = redisTemplate.opsForValue().get(ACCESS_PREFIX + token);
         if (redisEmail == null) {
             log.warn("Access token не найден в Redis (отозван?) для: {}", path);
             return unauthorized(exchange);
         }
 
+        // ---- Добавляем аутентификацию в контекст Spring Security ----
+        String email = claims.getSubject();
+        String role = claims.get("role", String.class);
+        if (role == null) role = "USER"; // fallback
+
+        UsernamePasswordAuthenticationToken auth =
+                new UsernamePasswordAuthenticationToken(
+                        email,
+                        null,
+                        Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role))
+                );
 
         ServerHttpRequest mutated = exchange.getRequest().mutate()
                 .header("X-User-Id",    extractUserId(claims))
-                .header("X-User-Email", claims.getSubject())
-                .header("X-User-Role",  safeRole(claims))
+                .header("X-User-Email", email)
+                .header("X-User-Role",  role)
                 .header("Authorization", "Bearer " + token)
                 .build();
 
-        log.info("Аутентифицирован (Redis OK): {} -> {}", claims.getSubject(), path);
-        return chain.filter(exchange.mutate().request(mutated).build());
+        log.info("Аутентифицирован (Redis OK): {} -> {}", email, path);
+
+        return chain.filter(exchange.mutate().request(mutated).build())
+                .contextWrite(ReactiveSecurityContextHolder.withAuthentication(auth));
     }
 
     private Mono<Void> unauthorized(ServerWebExchange exchange) {
@@ -165,10 +180,5 @@ public class JwtFilter implements WebFilter {
     private String extractUserId(Claims claims) {
         Object id = claims.get("id");
         return id != null ? id.toString() : "unknown";
-    }
-
-    private String safeRole(Claims claims) {
-        String role = claims.get("role", String.class);
-        return role != null ? role : "";
     }
 }
