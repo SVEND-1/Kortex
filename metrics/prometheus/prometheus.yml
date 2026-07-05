@@ -1,0 +1,53 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'spring-boot-apps'
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['host.docker.internal:8080']
+        labels:
+          application: 'api-gateway'
+          environment: 'development'
+      - targets: ['host.docker.internal:8081']
+        labels:
+          application: 'auth-service'
+          environment: 'development'
+      - targets: ['host.docker.internal:8082']
+        labels:
+          application: 'product-service'
+          environment: 'development'
+      - targets: ['host.docker.internal:8083']
+        labels:
+          application: 'order-service'
+          environment: 'development'
+      - targets: ['host.docker.internal:8084']
+        labels:
+          application: 'payment-service'
+          environment: 'development'
+      - targets: ['host.docker.internal:8085']
+        labels:
+          application: 'cart-service'
+          environment: 'development'
+      - targets: ['host.docker.internal:8086']
+        labels:
+          application: 'delivery-service'
+          environment: 'development'
+      - targets: ['host.docker.internal:8087']
+        labels:
+          application: 'admin-service'
+          environment: 'development'
+      - targets: ['host.docker.internal:8088']
+        labels:
+          application: 'notification-service'
+          environment: 'development'
+      - targets: ['host.docker.internal:8090']
+        labels:
+          application: 'user-service'
+          environment: 'development'
+      - targets: ['host.docker.internal:8091']
+        labels:
+          application: 'saga-orchestrator'
+          environment: 'development'
